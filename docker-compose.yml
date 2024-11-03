@@ -2,15 +2,15 @@ version: '3.8'
 
 services:
   actual-backup:
-    #image: actual-backup
-    build:
-      context: .
-      dockerfile: dockerfile
+    image: actual-backup:latest
+    #build:
+      #context: .
+      #dockerfile: dockerfile
     container_name: actual-backup
     environment:
       - ACTUAL_SERVER_URL=http://10.0.0.210:5008  # Replace with actual server URL
-      - ACTUAL_SERVER_PASSWORD=  # Replace with actual server password
-      - ACTUAL_SYNC_ID=  # Replace with actual sync ID
+      - ACTUAL_SERVER_PASSWORD=NEPaulinBudget  # Replace with actual server password
+      - ACTUAL_SYNC_ID=46745636-edcb-48d3-b2e3-6658b0608d8b  # Replace with actual sync ID
       - CRON_SCHEDULE=* * * * *
     volumes:
       - ./local_dir:/app/data  # Mount local directory to /app/data in the container
