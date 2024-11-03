@@ -22,7 +22,7 @@ env:
     ghcr.io/shall0pass/actual-backup
 
   TAGS: |
-    type=semver
+    type=edge, value=latest
     type=sha
 
 jobs:
