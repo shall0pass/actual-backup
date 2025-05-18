@@ -8,6 +8,6 @@ services:
       - ACTUAL_SERVER_URL=${ACTUAL_SERVER_URL}
       - ACTUAL_SERVER_PASSWORD=${ACTUAL_SERVER_PASSWORD}
       - ACTUAL_SYNC_ID=${ACTUAL_SYNC_ID}
-      - CRON_SCHEDULE=${CRON_SCHEDULE}
+      - CRON_SCHEDULE=0 0 * * *
     volumes:
       - ./local_dir:/app/data  # Mount local directory to /app/data in the container
