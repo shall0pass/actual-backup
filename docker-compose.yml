@@ -1,0 +1,13 @@
+services:
+  actual-backup:
+    build:
+      context: .
+      dockerfile: dockerfile
+    container_name: actual-backup
+    environment:
+      - ACTUAL_SERVER_URL=${ACTUAL_SERVER_URL}
+      - ACTUAL_SERVER_PASSWORD=${ACTUAL_SERVER_PASSWORD}
+      - ACTUAL_SYNC_ID=${ACTUAL_SYNC_ID}
+      - CRON_SCHEDULE=${CRON_SCHEDULE}
+    volumes:
+      - ./local_dir:/app/data  # Mount local directory to /app/data in the container
