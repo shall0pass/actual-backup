@@ -1,0 +1,11 @@
+node-modules/
+yarn.lock
+yarn-error.log
+package-lock.json
+
+runBackupWithENV.sh
+buildNewImage.sh
+data/
+local-dir/*
+my.env
+.env
