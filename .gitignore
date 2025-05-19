@@ -8,3 +8,4 @@ buildNewImage.sh
 data/
 local-dir/*
 my.env
+.env

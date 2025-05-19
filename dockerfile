@@ -22,6 +22,7 @@ RUN mkdir data
 ENV ACTUAL_SERVER_URL=http://localhost:5006
 ENV ACTUAL_SERVER_PASSWORD = ""
 ENV ACTUAL_SYNC_ID = ""
+ENV TZ = "Etc/UTC"
 ENV NODE_TLS_REJECT_UNAUTHORIZED=0
 #CMD ["cron", "-f"]
 CMD ["/usr/local/bin/entrypoint.sh"]

@@ -14,3 +14,6 @@ touch /var/log/cron.log
 
 # Start cron
 cron -f
+
+# Set timezone
+cp /usr/share/zoneinfo/$TZ /etc/localtime
