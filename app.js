@@ -12,7 +12,7 @@ async function downloadBudget() {
     console.log('Starting init');
     await api.init({
       // Budget data will be cached locally here, in subdirectories for each file.
-      dataDir: './data',
+      dataDir: '/app/data',
       // This is the URL of your running server
       serverURL: url,
       // This is the password you use to log into the server
@@ -31,7 +31,7 @@ async function downloadBudget() {
 function compressBudget() {
   const today = fdate.format(Date(),'yyyy-MM-dd-HH-mm');
   let fileName;
-  const budgetList = fs.readdirSync('./data');
+  const budgetList = fs.readdirSync('/app/data');
   console.log(budgetList);
   budgetList.forEach((element) => {
 
@@ -40,7 +40,7 @@ function compressBudget() {
       return;
     }
 
-    fs.readFile('./data/' + element +'/metadata.json', 'utf8', (err, data) => {
+    fs.readFile('/app/data/' + element +'/metadata.json', 'utf8', (err, data) => {
       if (err) {
         console.error('Error reading file:', err);
         return;
@@ -50,8 +50,8 @@ function compressBudget() {
         // Parsing JSON string to JavaScript object
         const obj = JSON.parse(data);
         fileName = obj.budgetName + '-' + today;
-        var inPath = './data/' + element; // has the budget-id
-        var outPath = './data/' + fileName + '.zip'; // name of output zip file
+        var inPath = '/app/data/' + element; // has the budget-id
+        var outPath = '/app/data/' + fileName + '.zip'; // name of output zip file
         _7z.pack(inPath, outPath, err => {console.log(err)});
       } catch (error) {
         console.error('Error parsing JSON:', error);
