@@ -8,7 +8,7 @@ export TZ=${TZ}
 EOF
 )
 
-cat << 'EOF' > /app/runjob.sh
+cat << EOF > /app/runjob.sh
 #!/bin/bash
 export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 export NODE_TLS_REJECT_UNAUTHORIZED=0
