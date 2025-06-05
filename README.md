@@ -3,6 +3,8 @@
 This is a very basic backup script.  Wherever this container is installed, it can download and create backups according to a defined cron schedule.
 The easiest method is to use docker compose. 
 
+The backup will keep the last 10 backups in addition to the last backup from each month.
+
 1. Copy the docker-compose.yml to your preferred installation path, or copy the contents into a program such as portainer or dockge.
 
 2. Edit the docker-compose.yml file.  Define your scheduled backups by editing the cron schedule.  The default setting will back up the budget file once per day at 00:00:00.
