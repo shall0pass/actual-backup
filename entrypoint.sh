@@ -1,13 +1,18 @@
 #!/bin/bash
 
+export_vars=$(cat <<EOF
+export ACTUAL_SERVER_PASSWORD=${ACTUAL_SERVER_PASSWORD}
+export ACTUAL_SERVER_URL=${ACTUAL_SERVER_URL}
+export ACTUAL_SYNC_ID=${ACTUAL_SYNC_ID}
+export TZ=${TZ}
+EOF
+)
+
 cat << 'EOF' > /app/runjob.sh
 #!/bin/bash
-export TZ=${TZ}
-export ACTUAL_SERVER_URL=${ACTUAL_SERVER_URL}
-export ACTUAL_SERVER_PASSWORD=${ACTUAL_SERVER_PASSWORD}
-export ACTUAL_SYNC_ID=${ACTUAL_SYNC_ID}
 export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 export NODE_TLS_REJECT_UNAUTHORIZED=0
+$export_vars
 /usr/local/bin/node /app/app.js >> /var/log/cron.log 2>&1
 EOF
 
