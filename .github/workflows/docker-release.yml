@@ -1,7 +1,8 @@
 name: Build Edge Docker Image
 
-# Edge Docker images are built for every commit, and daily
 on:
+  release:
+    types: [published]
   push:
     branches:
       - master
@@ -22,7 +23,7 @@ env:
     ghcr.io/shall0pass/actual-backup
 
   TAGS: |
-    type=edge, value=latest
+    type=raw, value=latest
     type=sha
 
 jobs:
