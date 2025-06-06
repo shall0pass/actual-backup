@@ -1,67 +1,3 @@
-// let url = process.env.ACTUAL_SERVER_URL || 'http://localhost:5006' //"http://localhost:5006" //url of your server that the script can use to access your budget files
-// let password = process.env.ACTUAL_SERVER_PASSWORD || 'MyFinances' //"" //password of your server
-// let sync_id = process.env.ACTUAL_SYNC_ID || 'test-sync' //""// found in advanced settings in  actualbudget, looks something like 'ace017dc-ee96-4b24-a1f4-e6db10c96e53'
-
-// let api = require('@actual-app/api');
-// let _7z = require('7zip-min');
-// let fdate = require('date-fns');
-// let fs = require('fs');
-
-// async function downloadBudget() {
-
-//     console.log('Starting init');
-//     await api.init({
-//       // Budget data will be cached locally here, in subdirectories for each file.
-//       dataDir: '/app/data',
-//       // This is the URL of your running server
-//       serverURL: url,
-//       // This is the password you use to log into the server
-//       password: password,
-//     });
-//     // // This is the ID from Settings → Show advanced settings → Sync ID
-//     console.log('Finished init.  Starting download.');
-//     await api.downloadBudget(sync_id, password);
-
-//     await api.sync();
-//     await api.shutdown();
-
-//     compressBudget();
-// };
-
-// function compressBudget() {
-//   const today = fdate.format(Date(),'yyyy-MM-dd-HH-mm');
-//   let fileName;
-//   const budgetList = fs.readdirSync('/app/data');
-//   console.log(budgetList);
-//   budgetList.forEach((element) => {
-
-//     if (element.endsWith('.zip')) {
-//       console.log(`Skipping file: ${element}`);
-//       return;
-//     }
-
-//     fs.readFile('/app/data/' + element +'/metadata.json', 'utf8', (err, data) => {
-//       if (err) {
-//         console.error('Error reading file:', err);
-//         return;
-//       }
-
-//       try {
-//         // Parsing JSON string to JavaScript object
-//         const obj = JSON.parse(data);
-//         fileName = obj.budgetName + '-' + today;
-//         var inPath = '/app/data/' + element; // has the budget-id
-//         var outPath = '/app/data/' + fileName + '.zip'; // name of output zip file
-//         _7z.pack(inPath, outPath, err => {console.log(err)});
-//       } catch (error) {
-//         console.error('Error parsing JSON:', error);
-//       }
-//     })
-//   });
-// }
-
-// downloadBudget();
-
 let url = process.env.ACTUAL_SERVER_URL || 'http://localhost:5006';
 let password = process.env.ACTUAL_SERVER_PASSWORD || 'MyFinances';
 let sync_id = process.env.ACTUAL_SYNC_ID || 'test-sync';
@@ -87,7 +23,7 @@ async function downloadBudget() {
   try {
     console.log('🔄 Starting init');
     await api.init({
-      dataDir: '/app/data',
+      dataDir: './data',
       serverURL: url,
       password: password,
     });
@@ -111,7 +47,7 @@ applyRetentionPolicy();
 
 function compressBudget() {
   const today = fdate.format(new Date(), 'yyyy-MM-dd-HH-mm');
-  const budgetList = fs.readdirSync('/app/data');
+  const budgetList = fs.readdirSync('./data');
 
   for (const element of budgetList) {
     if (element.endsWith('.zip')) {
@@ -119,14 +55,14 @@ function compressBudget() {
       continue;
     }
 
-    const metadataPath = `/app/data/${element}/metadata.json`;
+    const metadataPath = `./data/${element}/metadata.json`;
     try {
       const data = fs.readFileSync(metadataPath, 'utf8');
       const obj = JSON.parse(data);
 
       const fileName = `${obj.budgetName}-${today}`;
-      const inPath = `/app/data/${element}`;
-      const outPath = `/app/data/${fileName}.zip`;
+      const inPath = `./data/${element}`;
+      const outPath = `./data/${fileName}.zip`;
 
       _7z.pack(inPath, outPath, err => {
         if (err) {
@@ -142,11 +78,11 @@ function compressBudget() {
 }
 
 function applyRetentionPolicy() {
-  const files = fs.readdirSync('/app/data')
+  const files = fs.readdirSync('./data')
     .filter(name => name.endsWith('.zip'))
     .map(name => ({
       name,
-      fullPath: path.join('/app/data', name),
+      fullPath: path.join('./data', name),
       date: parseDateFromName(name)
     }))
     .filter(file => file.date !== null)
