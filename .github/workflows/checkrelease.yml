@@ -2,7 +2,7 @@ name: Check Actual for New Release
 
 on:
   schedule:
-    - cron: '0 */3 * * *'  # Every 3 hours
+    - cron: '0 */3 1-7 * *'  # Every 3 hours
   workflow_dispatch:
 
 jobs:
