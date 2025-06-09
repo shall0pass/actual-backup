@@ -21,9 +21,11 @@ jobs:
 
       - name: Update version in package.json
         run: |
-          VERSION="${{ github.event.client_payload.version }}"
-          echo "Updating version to $VERSION"
-          jq --arg v "$VERSION" '.version = $v' package.json > temp.json && mv temp.json package.json
+            VERSION="${{ github.event.client_payload.version }}"
+            # Strip leading "v" for package.json
+            CLEAN_VERSION="${VERSION#v}"
+            echo "Updating version in package.json to $CLEAN_VERSION"
+            jq --arg v "$CLEAN_VERSION" '.version = $v' package.json > temp.json && mv temp.json package.json
 
       - name: Regenerate package-lock.json
         run: npm install --package-lock-only
