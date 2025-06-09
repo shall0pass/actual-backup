@@ -2,7 +2,7 @@ name: Check Actual for New Release
 
 on:
   schedule:
-    - cron: '* */3 * * *'  # Every 2 hours
+    - cron: '0 */3 * * *'  # Every 3 hours
   workflow_dispatch:
 
 jobs:
@@ -18,7 +18,12 @@ jobs:
         run: |
           curl -s https://api.github.com/repos/actualbudget/actual/releases/latest \
             | jq -r '.tag_name' > version.txt
-          echo "version=$(cat version.txt)" >> $GITHUB_OUTPUT
+          version=$(cat version.txt)
+          if [[ "$version" == "null" ]]; then
+            echo "No release found or API error. Exiting."
+            exit 0
+          fi
+          echo "version=$version" >> $GITHUB_OUTPUT
 
       - name: Compare with local tags
         id: compare
