@@ -6,7 +6,7 @@
     "yarn": "^1.22.22"
   },
   "name": "actual-backup",
-  "version": "null",
+  "version": "25.6.1",
   "description": "Automatically backup budget files",
   "main": "app.js",
   "repository": "https://github.com/shall0pass/actual-backup",
