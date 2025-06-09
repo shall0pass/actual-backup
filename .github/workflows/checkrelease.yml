@@ -1,0 +1,44 @@
+name: Check Actual for New Release
+
+on:
+  schedule:
+    - cron: '* */3 * * *'  # Every 2 hours
+  workflow_dispatch:
+
+jobs:
+  check-release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Fetch latest release from Actual
+        id: get_release
+        run: |
+          curl -s https://api.github.com/repos/actualbudget/actual/releases/latest \
+            | jq -r '.tag_name' > version.txt
+          echo "version=$(cat version.txt)" >> $GITHUB_OUTPUT
+
+      - name: Compare with local tags
+        id: compare
+        run: |
+          latest="${{ steps.get_release.outputs.version }}"
+          echo "Latest upstream tag: $latest"
+
+          git fetch --tags
+          current=$(git tag --sort=-v:refname | head -n 1 || echo "none")
+          echo "Current local tag: $current"
+
+          if [[ "$latest" != "$current" ]]; then
+            echo "NEW_VERSION=$latest" >> $GITHUB_ENV
+            echo "New release found"
+          else
+            echo "No new release"
+          fi
+
+      - name: Dispatch to autorelease.yml
+        if: env.NEW_VERSION
+        uses: peter-evans/repository-dispatch@v3
+        with:
+          token: ${{ secrets.AUTORELEASE }}
+          repository: shall0pass/actual-backup
+          event-type: trigger-release
+          client-payload: '{"version": "${{ env.NEW_VERSION }}"}'
