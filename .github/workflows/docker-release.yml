@@ -3,11 +3,18 @@ name: Build multi-platform Docker Image
 on:
   release:
     types: [published]
+  workflow_run:
+    workflows: ["Auto Update Version and Release"]  # Must match the exact `name:` in autorelease.yml
+    types:
+      - completed
   workflow_dispatch:
 
 jobs:
   build:
     name: Build Docker image
+    if: |
+      github.event_name != 'workflow_run' || 
+      (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success')
     runs-on: ubuntu-latest
     permissions:
       contents: read
