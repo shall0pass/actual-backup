@@ -34,5 +34,51 @@ If you would prefer to build your own docker image, clone this repository and re
       dockerfile: dockerfile
   ```
 
-# Updating to the next version
-Actual tends to release at the beginning of each month.  I may not always be on top of things.  To update this package to the latest API, edit **package.json** and change the version of the API to the current release.
+# Using a docker compose stack for Actual
+I use actual-backup and actualtap alongside actualbudget to enhance the functionalities.  I use a docker compose stack with a .env file to simplify deployment and updates.
+The repositories for shall0pass/actualtap and shall0pass/actual-backup should auto update when a new release is discovered from actualbudget.  The release versions are kept consistent with upstream actualbudget to make it simple to figure out which tag is needed.
+```
+services:
+  actual:
+    container_name: actualbudget
+    image: ghcr.io/actualbudget/actual:${TAG}
+    ports:
+      - 5006:5006
+    volumes:
+      - ./docker/actual/:/data
+    restart: unless-stopped
+  actualtap:
+    container_name: actualtap
+    image: ghcr.io/shall0pass/actualtap:${TAG}
+    restart: unless-stopped
+    ports:
+      - 5106:3001
+    volumes:
+      - ./docker/actual-tap:/app/data
+    environment:
+      - TZ=America/Chicago
+      - ACTUAL_URL=${ACTUAL_SERVER_URL}
+      - ACTUAL_PASSWORD=${ACTUAL_SERVER_PASSWORD}
+      - ACTUAL_SYNC_ID=${ACTUAL_SYNC_ID}
+      - API_KEY=SECRET API KEY
+  actual-backup:
+    image: ghcr.io/shall0pass/actual-backup:${TAG}
+    container_name: actual-backup
+    restart: unless-stopped
+    environment:
+      - TZ=America/Chicago
+      - ACTUAL_SERVER_URL=${ACTUAL_SERVER_URL}
+      - ACTUAL_SERVER_PASSWORD=${ACTUAL_SERVER_PASSWORD}
+      - ACTUAL_SYNC_ID=${ACTUAL_SYNC_ID}
+      - CRON_SCHEDULE=0 0 * * *
+    volumes:
+      - ./docker/actual-backup:/app/data
+networks: {}
+```
+.env file
+```
+TAG=25.7.0
+ACTUAL_SERVER_URL=https://budget.example.ccom
+ACTUAL_SERVER_PASSWORD=YOUR ACTUAL PASSWORD
+ACTUAL_SYNC_ID=YOUR BUDGET SYNC ID
+```
