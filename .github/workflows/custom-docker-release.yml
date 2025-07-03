@@ -36,25 +36,27 @@ jobs:
 
       - name: Extract version parts
         id: semver
+        env:
+          DISPATCH_TAG: ${{ github.event.inputs.tag }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+          REF: ${{ github.ref }}
         run: |
-              # Prioritize inputs.tag (workflow_dispatch), then release.tag_name, fallback to GITHUB_REF
-              if [ "${{ github.event.inputs.tag }}" != "" ]; then
-                RAW_TAG="${{ github.event.inputs.tag }}"
-                echo "Using tag from workflow_dispatch input: $RAW_TAG"
-              elif [ "${{ github.event.release.tag_name }}" != "" ]; then
-                RAW_TAG="${{ github.event.release.tag_name }}"
-                echo "Using tag from release event: $RAW_TAG"
-              else
-                RAW_TAG="${GITHUB_REF#refs/tags/}"
-                echo "Using fallback from GITHUB_REF: $RAW_TAG"
-              fi
-
-              VERSION="${RAW_TAG#v}"
-              SHORT_VERSION=$(echo "$VERSION" | cut -d. -f1-3)
-
-              echo "tag=$VERSION" >> "$GITHUB_OUTPUT"
-              echo "short=$SHORT_VERSION" >> "$GITHUB_OUTPUT"
-
+          if [ -n "$DISPATCH_TAG" ]; then
+            RAW_TAG="$DISPATCH_TAG"
+            echo "Using tag from workflow_dispatch input: $RAW_TAG"
+          elif [ -n "$RELEASE_TAG" ]; then
+            RAW_TAG="$RELEASE_TAG"
+            echo "Using tag from release event: $RAW_TAG"
+          else
+            RAW_TAG="${REF#refs/tags/}"
+            echo "Using fallback from GITHUB_REF: $RAW_TAG"
+          fi
+      
+          VERSION="${RAW_TAG#v}"
+          SHORT_VERSION=$(echo "$VERSION" | cut -d. -f1-3)
+      
+          echo "tag=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "short=$SHORT_VERSION" >> "$GITHUB_OUTPUT"
       - name: Docker meta
         id: meta
         uses: docker/metadata-action@v4
