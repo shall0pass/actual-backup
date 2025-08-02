@@ -1,4 +1,4 @@
-name: Build multi-platform Docker Image
+name: Custom Docker Image
 
 on:
   release:
@@ -51,15 +51,18 @@ jobs:
             RAW_TAG="$RELEASE_TAG"
             echo "Using tag from release event: $RAW_TAG"
           else
-            RAW_TAG="${REF#refs/tags/}"
+            RAW_TAG="$REF"
+            RAW_TAG="${RAW_TAG#refs/tags/}"
+            RAW_TAG="${RAW_TAG#refs/heads/}"
             echo "Using fallback from GITHUB_REF: $RAW_TAG"
           fi
-      
+
           VERSION="${RAW_TAG#v}"
           SHORT_VERSION=$(echo "$VERSION" | cut -d. -f1-3)
-      
+
           echo "tag=$VERSION" >> "$GITHUB_OUTPUT"
           echo "short=$SHORT_VERSION" >> "$GITHUB_OUTPUT"
+
       - name: Docker meta
         id: meta
         uses: docker/metadata-action@v4
