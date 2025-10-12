@@ -25,7 +25,9 @@ jobs:
             # Strip leading "v" for package.json
             CLEAN_VERSION="${VERSION#v}"
             echo "Updating version in package.json to $CLEAN_VERSION"
-            jq --arg v "$CLEAN_VERSION" '.version = $v' package.json > temp.json && mv temp.json package.json
+            jq --arg v "$CLEAN_VERSION" \
+            '.version = $v | (.dependencies["@actual-app/api"] // .devDependencies["@actual-app/api"]) = $v' \
+            package.json > temp.json && mv temp.json package.json
 
       - name: Regenerate package-lock.json
         run: npm install --package-lock-only
