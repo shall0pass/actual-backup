@@ -1,12 +1,12 @@
 {
   "dependencies": {
     "7zip-min": "^2.1.0",
-    "@actual-app/api": "25.11.0",
+    "@actual-app/api": "25.12.0",
     "date-fns": "^4.1.0",
     "yarn": "^1.22.22"
   },
   "name": "actual-backup",
-  "version": "25.11.0",
+  "version": "25.12.0",
   "description": "Automatically backup budget files",
   "main": "app.js",
   "repository": "https://github.com/shall0pass/actual-backup",
