@@ -1,8 +1,6 @@
 name: Custom Docker Image
 
 on:
-  release:
-    types: [published]
   push:
     tags:
       - 'v*'
