@@ -1,6 +1,6 @@
 {
   "dependencies": {
-    "7zip-min": "^2.1.0",
+    "7zip-min": "^3.0.1",
     "@actual-app/api": "26.2.1",
     "date-fns": "^4.1.0",
     "yarn": "^1.22.22"
