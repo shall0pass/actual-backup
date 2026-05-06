@@ -1,11 +1,11 @@
-FROM node:20-bookworm as build
+FROM node:22-bookworm as build
 RUN apt-get update && apt-get install -y openssl
 COPY package.json ./app/
 COPY app.js ./app/
 WORKDIR /app
 RUN npm install
 
-FROM node:20-bookworm-slim
+FROM node:22-bookworm-slim
 RUN apt-get update && apt-get install -y openssl cron
 
 COPY entrypoint.sh /usr/local/bin/entrypoint.sh
