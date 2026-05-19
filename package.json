@@ -2,7 +2,7 @@
   "dependencies": {
     "@actual-app/api": "26.5.2",
     "7zip-min": "^3.0.1",
-    "date-fns": "^4.1.0",
+    "date-fns": "^4.2.1",
     "yarn": "^1.22.22"
   },
   "name": "actual-backup",
