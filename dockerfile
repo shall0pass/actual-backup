@@ -2,7 +2,7 @@ FROM node:24-slim as build
 RUN apt-get update \
     && apt-get install --no-install-recommends -y openssl \
     && rm -rf /var/lib/apt/lists/*
-COPY package.json ./app/
+COPY package*.json ./app/
 COPY app.js ./app/
 WORKDIR /app
 RUN npm ci --omit=dev
