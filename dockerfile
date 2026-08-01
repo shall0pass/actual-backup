@@ -1,11 +1,13 @@
-FROM node:22-bookworm as build
-RUN apt-get update && apt-get install -y openssl
+FROM node:24-slim as build
+RUN apt-get update \
+    && apt-get install --no-install-recommends -y openssl \
+    && rm -rf /var/lib/apt/lists/*
 COPY package.json ./app/
 COPY app.js ./app/
 WORKDIR /app
-RUN npm install
+RUN npm ci --omit=dev
 
-FROM node:22-bookworm-slim
+FROM node:24-bookworm-slim
 RUN apt-get update && apt-get install -y openssl cron
 
 COPY entrypoint.sh /usr/local/bin/entrypoint.sh
