@@ -48,7 +48,7 @@ jobs:
 
           docker buildx build \
             --platform linux/amd64 \
-            --file Dockerfile.web \
+            --file dockerfile \
             --build-arg GITEA_TOKEN=${{ secrets.REGISTRY_PASSWORD }} \
             --tag ${IMAGE}:${VERSION} \
             --tag ${IMAGE}:${SHORT_VERSION} \
