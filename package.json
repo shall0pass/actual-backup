@@ -3,6 +3,11 @@
     "@actual-app/api": "26.8.0",
     "7zip-min": "^3.0.1",
     "date-fns": "^4.4.0",
+    "express": "^5.2.1",
+    "express-session": "^1.19.0",
+    "node-cron": "^4.6.0",
+    "openid-client": "^6.8.4",
+    "session-file-store": "^1.5.0",
     "yarn": "^1.22.22"
   },
   "name": "actual-backup",

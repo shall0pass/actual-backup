@@ -1,10 +1,18 @@
 #!/bin/bash
+set -e
 
 export_vars=$(cat <<EOF
 export ACTUAL_SERVER_PASSWORD=${ACTUAL_SERVER_PASSWORD}
 export ACTUAL_SERVER_URL=${ACTUAL_SERVER_URL}
 export ACTUAL_SYNC_ID=${ACTUAL_SYNC_ID}
 export TZ=${TZ}
+export WEB_PORT=${WEB_PORT}
+export BACKUP_DATA_ROOT=${BACKUP_DATA_ROOT}
+export OIDC_ISSUER=${OIDC_ISSUER}
+export OIDC_CLIENT_ID=${OIDC_CLIENT_ID}
+export OIDC_CLIENT_SECRET=${OIDC_CLIENT_SECRET}
+export OIDC_REDIRECT_URI=${OIDC_REDIRECT_URI}
+export SESSION_SECRET=${SESSION_SECRET}
 EOF
 )
 
@@ -17,20 +25,22 @@ cd /app || exit 1
 /usr/local/bin/node /app/app.js >> /var/log/cron.log 2>&1
 EOF
 
-echo "$CRON_SCHEDULE root /app/runjob.sh" > /etc/cron.d/mycron
+if [ -n "$CRON_SCHEDULE" ]; then
+  echo "$CRON_SCHEDULE root /app/runjob.sh" > /etc/cron.d/mycron
+  chmod 0644 /etc/cron.d/mycron
+  chmod +x /app/runjob.sh
+  crontab /etc/cron.d/mycron
+  touch /var/log/cron.log
+fi
 
-# Give execution rights on the cron job
-chmod 0644 /etc/cron.d/mycron
-chmod +x /app/runjob.sh
+# Set timezone only when the target file differs from the existing localtime file.
+if [ -n "$TZ" ] && [ -f "/usr/share/zoneinfo/$TZ" ] && ! cmp -s "/usr/share/zoneinfo/$TZ" "/etc/localtime"; then
+  cp "/usr/share/zoneinfo/$TZ" /etc/localtime
+fi
 
-# Apply cron job
-crontab /etc/cron.d/mycron
+if [ -n "$CRON_SCHEDULE" ]; then
+  cron -f &
+fi
 
-# Create the log file for cron
-touch /var/log/cron.log
-
-# Start cron
-cron -f
-
-# Set timezone
-cp /usr/share/zoneinfo/$TZ /etc/localtime
+cd /app || exit 1
+exec /usr/local/bin/node /app/web.js
