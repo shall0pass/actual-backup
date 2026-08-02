@@ -229,6 +229,31 @@ function getBackupList(userId) {
 
 function renderDashboard(req, res) {
   const userId = getUserId(req);
+
+  if (!userId || userId === 'anonymous') {
+    const html = `<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Actual Backup Portal</title>
+    <style>
+      body { font-family: Arial, sans-serif; margin: 2rem; }
+      .card { border: 1px solid #d0d7de; border-radius: 8px; padding: 1rem; margin-top: 1rem; }
+      a.button { display: inline-block; padding: 0.5rem 1rem; background: #0969da; color: white; text-decoration: none; border-radius: 6px; margin-right: 0.5rem; }
+    </style>
+  </head>
+  <body>
+    <h1>Actual Backup Portal</h1>
+    <div class="card">
+      <p>Please sign in to access your backup settings and backup history.</p>
+      <a class="button" href="/auth/login">Login</a>
+    </div>
+  </body>
+</html>`;
+
+    return res.send(html);
+  }
+
   const backups = getBackupList(userId);
   const config = getUserConfig(userId);
   const html = `<!doctype html>
@@ -252,7 +277,6 @@ function renderDashboard(req, res) {
       <p><strong>Signed in as:</strong> ${userId}</p>
       <p><strong>OIDC mode:</strong> ${oidcEnabled ? 'enabled' : 'demo fallback'}</p>
       <p><strong>Admin mode:</strong> ${isAdminUser(userId) ? 'yes' : 'no'}</p>
-      <a class="button" href="/auth/login">Login</a>
       <a class="button" href="/settings">Settings</a>
       <a class="button" href="/api/run">Run backup</a>
       <a class="button" href="/logout">Logout</a>
