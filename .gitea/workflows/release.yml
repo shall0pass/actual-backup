@@ -1,0 +1,57 @@
+name: Custom Docker Image
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag (e.g. v1.2.3)
+        required: true
+
+jobs:
+  build:
+    name: Build Docker Image
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Checkout selected tag
+        run: |
+          git fetch --tags
+          git checkout "${{ inputs.tag }}"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Extract version parts
+        id: semver
+        run: |
+          RAW_TAG="${{ inputs.tag }}"
+          VERSION="${RAW_TAG#v}"
+          SHORT_VERSION=$(echo "$VERSION" | cut -d. -f1-3)
+
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+          echo "SHORT_VERSION=$SHORT_VERSION" >> $GITHUB_ENV
+
+      - name: Login to Gitea Registry
+        run: |
+          echo "${{ secrets.REGISTRY_PASSWORD }}" | \
+          docker login "${{ secrets.REGISTRY_URL }}" \
+            -u "${{ secrets.REGISTRY_USER }}" \
+            --password-stdin
+
+      - name: Build and Push
+        run: |
+          IMAGE="${{ secrets.REGISTRY_URL }}/${{ secrets.REGISTRY_USER }}/checked_test"
+
+          docker buildx build \
+            --platform linux/amd64 \
+            --file Dockerfile.web \
+            --build-arg GITEA_TOKEN=${{ secrets.REGISTRY_PASSWORD }} \
+            --tag ${IMAGE}:${VERSION} \
+            --tag ${IMAGE}:${SHORT_VERSION} \
+            --tag ${IMAGE}:latest \
+            --push \
+            .
