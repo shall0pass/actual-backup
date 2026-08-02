@@ -44,7 +44,7 @@ jobs:
 
       - name: Build and Push
         run: |
-          IMAGE="${{ secrets.REGISTRY_URL }}/${{ secrets.REGISTRY_USER }}/checked_test"
+          IMAGE="${{ secrets.REGISTRY_URL }}/${{ secrets.REGISTRY_USER }}/actual-backup"
 
           docker buildx build \
             --platform linux/amd64 \
