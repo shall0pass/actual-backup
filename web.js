@@ -1,5 +1,6 @@
 const express = require('express');
 const session = require('express-session');
+const FileStore = require('session-file-store')(session);
 const fs = require('fs');
 const path = require('path');
 const cron = require('node-cron');
@@ -14,6 +15,7 @@ const logPrefix = `[actual-backup v${appVersion}]`;
 const port = Number(process.env.WEB_PORT || 3000);
 const dataRoot = path.resolve(process.env.BACKUP_DATA_ROOT || './data');
 const stateFile = path.join(dataRoot, '.actual-backup-store.json');
+const sessionStorePath = path.join(dataRoot, '.sessions');
 const adminUserId = process.env.ADMIN_USER_ID || 'demo-user';
 
 function normalizeRedirectUri(rawRedirectUri) {
@@ -141,8 +143,15 @@ async function initializeOidc() {
   }
 }
 
+fs.mkdirSync(sessionStorePath, { recursive: true });
+
 app.use(
   session({
+    store: new FileStore({
+      path: sessionStorePath,
+      logFn: () => {},
+      ttl: 60 * 60 * 4,
+    }),
     secret: process.env.SESSION_SECRET || 'actual-backup-dev-session',
     resave: false,
     saveUninitialized: false,
