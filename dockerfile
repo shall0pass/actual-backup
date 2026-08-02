@@ -4,6 +4,7 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 COPY package*.json ./app/
 COPY app.js ./app/
+COPY web.js ./app/
 WORKDIR /app
 RUN npm ci --omit=dev
 
@@ -15,10 +16,12 @@ RUN chmod +x /usr/local/bin/entrypoint.sh
 
 WORKDIR /app
 COPY --from=build /app /app
-RUN mkdir data
+RUN mkdir -p data
 ENV ACTUAL_SERVER_URL=http://localhost:5006
-ENV ACTUAL_SERVER_PASSWORD = ""
-ENV ACTUAL_SYNC_ID = ""
-ENV TZ = "Etc/UTC"
+ENV ACTUAL_SERVER_PASSWORD=""
+ENV ACTUAL_SYNC_ID=""
+ENV TZ="Etc/UTC"
+ENV WEB_PORT=3000
+ENV BACKUP_DATA_ROOT=/app/data
 ENV NODE_TLS_REJECT_UNAUTHORIZED=0
 CMD ["/usr/local/bin/entrypoint.sh"]
