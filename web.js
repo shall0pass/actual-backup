@@ -8,6 +8,7 @@ const { version: appVersion } = require('./package.json');
 const { runBackup, loadUserConfig, resolveScopedDir } = require('./app');
 
 const app = express();
+app.set('trust proxy', 1);
 const debugEnabled = String(process.env.DEBUG || 'false').toLowerCase() === 'true';
 const logPrefix = `[actual-backup v${appVersion}]`;
 const port = Number(process.env.WEB_PORT || 3000);
@@ -15,16 +16,36 @@ const dataRoot = path.resolve(process.env.BACKUP_DATA_ROOT || './data');
 const stateFile = path.join(dataRoot, '.actual-backup-store.json');
 const adminUserId = process.env.ADMIN_USER_ID || 'demo-user';
 
-if (debugEnabled) {
-  console.log(`${logPrefix} [DEBUG] web.js booting with DEBUG=true`);
+function normalizeRedirectUri(rawRedirectUri) {
+  const candidate = String(rawRedirectUri || '').trim();
+  if (!candidate) {
+    return `http://localhost:${port}/auth/callback`;
+  }
+
+  if (candidate.endsWith('/auth/callback')) {
+    return candidate;
+  }
+
+  if (candidate.endsWith('/')) {
+    return `${candidate}auth/callback`;
+  }
+
+  return `${candidate}/auth/callback`;
 }
 
 const oidcConfig = {
   issuer: process.env.OIDC_ISSUER,
   clientId: process.env.OIDC_CLIENT_ID,
   clientSecret: process.env.OIDC_CLIENT_SECRET,
-  redirectUri: process.env.OIDC_REDIRECT_URI || `http://localhost:${port}/auth/callback`,
+  redirectUri: normalizeRedirectUri(process.env.OIDC_REDIRECT_URI),
 };
+
+if (debugEnabled) {
+  console.log(`${logPrefix} [DEBUG] web.js booting with DEBUG=true`);
+  if (process.env.OIDC_REDIRECT_URI) {
+    console.log(`${logPrefix} [DEBUG] OIDC redirect URI normalized to ${oidcConfig.redirectUri}`);
+  }
+}
 
 const isNonEmpty = (value) => typeof value === 'string' && value.trim().length > 0;
 
@@ -125,7 +146,11 @@ app.use(
     secret: process.env.SESSION_SECRET || 'actual-backup-dev-session',
     resave: false,
     saveUninitialized: false,
-    cookie: { httpOnly: true, maxAge: 1000 * 60 * 60 * 4 },
+    cookie: {
+      httpOnly: true,
+      secure: String(process.env.OIDC_REDIRECT_URI || '').startsWith('https://'),
+      maxAge: 1000 * 60 * 60 * 4,
+    },
   })
 );
 
