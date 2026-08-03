@@ -124,6 +124,8 @@ function registerUserSchedule(userId, config) {
 
 async function initializeOidc() {
   if (!oidcEnabled) {
+    req.session.userId = 'demo-user';
+    req.session.displayName = 'demo-user';
     return null;
   }
 
@@ -274,7 +276,7 @@ function renderDashboard(req, res) {
   <body>
     <h1>Actual Backup Portal</h1>
     <div class="card">
-      <p><strong>Signed in as:</strong> ${userId}</p>
+      <p><strong>Signed in as:</strong> ${getDisplayName(req)}</p>
       <p><strong>OIDC mode:</strong> ${oidcEnabled ? 'enabled' : 'demo fallback'}</p>
       <p><strong>Admin mode:</strong> ${isAdminUser(userId) ? 'yes' : 'no'}</p>
       <a class="button" href="/settings">Settings</a>
@@ -330,6 +332,10 @@ app.get('/settings', (req, res) => {
   }
 
   const config = getUserConfig(userId);
+  const parsedCron = parseCronForUI(config.CRON_SCHEDULE);
+  const cronTimeValue = parsedCron.mode === 'simple'
+    ? `${pad2(parsedCron.hour)}:${pad2(parsedCron.minute)}`
+    : '02:00';
   const html = `<!doctype html>
 <html>
   <head>
@@ -337,6 +343,32 @@ app.get('/settings', (req, res) => {
     <title>Settings</title>
     <style>body{font-family:Arial,sans-serif;margin:2rem;} input,textarea{width:100%;padding:0.5rem;margin:0.4rem 0;} button{padding:0.55rem 1rem;background:#0969da;color:white;border:none;border-radius:6px;} a.button{display:inline-block;padding:0.5rem 1rem;background:#333;color:white;text-decoration:none;border-radius:6px;}</style>
   </head>
+  <script>
+    const advancedToggle = document.getElementById('advancedToggle');
+    const simpleSchedule = document.getElementById('simpleSchedule');
+    const advancedSchedule = document.getElementById('advancedSchedule');
+    const cronHidden = document.getElementById('CRON_SCHEDULE');
+    const cronTime = document.getElementById('cronTime');
+    const cronRaw = document.getElementById('cronRaw');
+    const dayBoxes = document.querySelectorAll('.cron-day');
+
+    advancedToggle.addEventListener('change', () => {
+      simpleSchedule.style.display = advancedToggle.checked ? 'none' : '';
+      advancedSchedule.style.display = advancedToggle.checked ? '' : 'none';
+    });
+
+    document.querySelector('form').addEventListener('submit', () => {
+      if (advancedToggle.checked) {
+        cronHidden.value = cronRaw.value.trim();
+        return;
+      }
+
+      const [hour, minute] = (cronTime.value || '02:00').split(':');
+      const days = Array.from(dayBoxes).filter((box) => box.checked).map((box) => box.value);
+      const dayField = days.length ? days.join(',') : '*';
+      cronHidden.value = Number(minute) + ' ' + Number(hour) + ' * * ' + dayField;
+    });
+  </script>
   <body>
     <h1>Backup Settings</h1>
     <p>Signed in as: <strong>${userId}</strong></p>
@@ -346,8 +378,33 @@ app.get('/settings', (req, res) => {
       <label>Actual Server Password<input name="ACTUAL_SERVER_PASSWORD" value="${(config.ACTUAL_SERVER_PASSWORD || '').replace(/"/g, '&quot;')}" /></label>
       <label>Actual Sync ID<input name="ACTUAL_SYNC_ID" value="${(config.ACTUAL_SYNC_ID || '').replace(/"/g, '&quot;')}" /></label>
       <label>Actual Encryption Password<input name="ACTUAL_ENCRYPTION_PASSWORD" value="${(config.ACTUAL_ENCRYPTION_PASSWORD || '').replace(/"/g, '&quot;')}" /></label>
-      <label>Cron Schedule<input name="CRON_SCHEDULE" value="${(config.CRON_SCHEDULE || '').replace(/"/g, '&quot;')}" /></label>
-      <label>Backup Name<input name="BACKUP_NAME" value="${(config.BACKUP_NAME || '').replace(/"/g, '&quot;')}" /></label>
+      <div class="cron-picker">
+        <label>Backup Schedule</label>
+
+        <div id="simpleSchedule" style="${parsedCron.mode === 'advanced' ? 'display:none;' : ''}">
+          <label>Run at <input type="time" id="cronTime" value="${cronTimeValue}" /></label>
+          <div class="days">
+            ${DAY_LABELS.map((label, i) => `
+              <label style="display:inline-block;margin-right:0.75rem;width:auto;">
+                <input type="checkbox" class="cron-day" value="${i}" ${parsedCron.mode === 'simple' && parsedCron.days.includes(i) ? 'checked' : ''} />
+                ${label}
+              </label>
+            `).join('')}
+          </div>
+          <p style="color:#666;font-size:0.85rem;">Leave all days unchecked to run every day.</p>
+        </div>
+
+        <div id="advancedSchedule" style="${parsedCron.mode === 'advanced' ? '' : 'display:none;'}">
+          <textarea id="cronRaw" placeholder="e.g. 0 2 * * *">${parsedCron.mode === 'advanced' ? parsedCron.raw.replace(/</g, '&lt;') : ''}</textarea>
+        </div>
+
+        <label style="display:block;margin-top:0.25rem;">
+          <input type="checkbox" id="advancedToggle" ${parsedCron.mode === 'advanced' ? 'checked' : ''} style="width:auto;display:inline-block;margin-right:0.4rem;" />
+          Use a custom cron expression instead
+        </label>
+
+        <input type="hidden" name="CRON_SCHEDULE" id="CRON_SCHEDULE" value="${(config.CRON_SCHEDULE || '').replace(/"/g, '&quot;')}" />
+      </div>
       <button type="submit">Save Settings</button>
     </form>
   </body>
@@ -423,6 +480,7 @@ app.get('/auth/callback', async (req, res) => {
 
     const claims = tokenSet.claims();
     req.session.userId = claims.sub || claims.email || 'oidc-user';
+    req.session.displayName = resolveDisplayName(claims, req.session.userId);
     req.session.oidcState = null;
     req.session.oidcNonce = null;
     req.session.oidcCodeVerifier = null;
@@ -500,3 +558,43 @@ start().catch((error) => {
   console.error(`${logPrefix} [DEBUG] web.js startup failed, exiting with code 1`);
   process.exit(1);
 });
+
+function resolveDisplayName(claims, fallbackUserId) {
+  return (
+    claims.preferred_username ||
+    claims.nickname ||
+    claims.name ||
+    claims.email ||
+    fallbackUserId
+  );
+}
+
+function getUserId(req) {
+  return req.session?.userId || 'anonymous';
+}
+
+function getDisplayName(req) {
+  return req.session?.displayName || getUserId(req);
+}
+
+const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+function pad2(n) {
+  return String(n).padStart(2, '0');
+}
+
+function parseCronForUI(cron) {
+  const trimmed = String(cron || '').trim();
+  if (!trimmed) {
+    return { mode: 'simple', hour: 2, minute: 0, days: [] };
+  }
+
+  const match = trimmed.match(/^(\d{1,2})\s+(\d{1,2})\s+\*\s+\*\s+(\*|[0-6](?:,[0-6])*)$/);
+  if (!match) {
+    return { mode: 'advanced', raw: trimmed };
+  }
+
+  const [, minute, hour, dayField] = match;
+  const days = dayField === '*' ? [] : dayField.split(',').map(Number);
+  return { mode: 'simple', hour: Number(hour), minute: Number(minute), days };
+}
