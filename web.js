@@ -381,10 +381,14 @@ app.get('/auth/login', async (req, res) => {
     return res.redirect('/');
   }
 
+  const codeVerifier = openidClient.randomPKCECodeVerifier();
+  const codeChallenge = await openidClient.calculatePKCECodeChallenge(codeVerifier);
   const state = openidClient.randomState();
   const nonce = openidClient.randomNonce();
+
   req.session.oidcState = state;
   req.session.oidcNonce = nonce;
+  req.session.oidcCodeVerifier = codeVerifier;
 
   const authorizationUrl = openidClient.buildAuthorizationUrl(oidcClient, {
     redirect_uri: oidcConfig.redirectUri,
@@ -392,6 +396,8 @@ app.get('/auth/login', async (req, res) => {
     scope: 'openid profile email',
     state,
     nonce,
+    code_challenge: codeChallenge,
+    code_challenge_method: 'S256',
   });
 
   res.redirect(authorizationUrl.href);
@@ -409,8 +415,9 @@ app.get('/auth/callback', async (req, res) => {
       oidcClient,
       currentUrl,
       {
+        pkceCodeVerifier: req.session.oidcCodeVerifier,
         expectedState: req.session.oidcState,
-        nonce: req.session.oidcNonce,
+        expectedNonce: req.session.oidcNonce,
       }
     );
 
@@ -418,6 +425,7 @@ app.get('/auth/callback', async (req, res) => {
     req.session.userId = claims.sub || claims.email || 'oidc-user';
     req.session.oidcState = null;
     req.session.oidcNonce = null;
+    req.session.oidcCodeVerifier = null;
     res.redirect('/');
   } catch (error) {
     console.error(`${logPrefix} OIDC callback error:`, error);
