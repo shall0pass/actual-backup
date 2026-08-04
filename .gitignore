@@ -9,4 +9,4 @@ data/
 local-dir/*
 my.env
 .env
-./secrets/
+secrets/
