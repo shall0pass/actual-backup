@@ -16,5 +16,16 @@ services:
       - OIDC_CLIENT_SECRET=${OIDC_CLIENT_SECRET:-}
       - OIDC_REDIRECT_URI=${OIDC_REDIRECT_URI:-http://localhost:3000/auth/callback}
       - SESSION_SECRET=${SESSION_SECRET:-actual-backup-dev-session}
+      - ADMIN_USER_ID=admin
+      - ADMIN_USERNAME_FILE=/run/secrets/admin_username
+      - ADMIN_PASSWORD_FILE=/run/secrets/admin_password
     volumes:
       - ./local_dir:/app/data
+    secrets:
+      - admin_username
+      - admin_password
+secrets:
+  admin_username:
+    file: ./secrets/admin_username.txt
+  admin_password:
+    file: ./secrets/admin_password.txt

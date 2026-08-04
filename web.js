@@ -7,6 +7,7 @@ const cron = require('node-cron');
 const openidClient = require('openid-client');
 const { version: appVersion } = require('./package.json');
 const { runBackup, loadUserConfig, resolveScopedDir } = require('./app');
+const crypto = require('crypto');
 
 const app = express();
 app.set('trust proxy', 1);
@@ -124,8 +125,6 @@ function registerUserSchedule(userId, config) {
 
 async function initializeOidc() {
   if (!oidcEnabled) {
-    req.session.userId = 'demo-user';
-    req.session.displayName = 'demo-user';
     return null;
   }
 
@@ -229,10 +228,11 @@ function getBackupList(userId) {
     .sort((a, b) => new Date(b.modifiedAt) - new Date(a.modifiedAt));
 }
 
-function renderDashboard(req, res) {
+function renderDashboard(req, res, options = {}) {
   const userId = getUserId(req);
 
   if (!userId || userId === 'anonymous') {
+    const loginError = options.loginError || '';
     const html = `<!doctype html>
 <html>
   <head>
@@ -241,15 +241,28 @@ function renderDashboard(req, res) {
     <style>
       body { font-family: Arial, sans-serif; margin: 2rem; }
       .card { border: 1px solid #d0d7de; border-radius: 8px; padding: 1rem; margin-top: 1rem; }
-      a.button { display: inline-block; padding: 0.5rem 1rem; background: #0969da; color: white; text-decoration: none; border-radius: 6px; margin-right: 0.5rem; }
+      a.button, button.button { display: inline-block; padding: 0.5rem 1rem; background: #0969da; color: white; text-decoration: none; border-radius: 6px; margin-right: 0.5rem; border: none; cursor: pointer; font-size: 1rem; }
+      input { width: 100%; padding: 0.5rem; margin: 0.4rem 0; }
+      .error { color: #cf222e; }
     </style>
   </head>
   <body>
     <h1>Actual Backup Portal</h1>
+    ${oidcEnabled ? `
     <div class="card">
       <p>Please sign in to access your backup settings and backup history.</p>
-      <a class="button" href="/auth/login">Login</a>
-    </div>
+      <a class="button" href="/auth/login">Login with SSO</a>
+    </div>` : ''}
+    ${localAuthEnabled ? `
+    <div class="card">
+      <p>Admin login</p>
+      ${loginError ? `<p class="error">${loginError}</p>` : ''}
+      <form method="POST" action="/auth/local-login">
+        <label>Username<input name="username" autocomplete="username" /></label>
+        <label>Password<input type="password" name="password" autocomplete="current-password" /></label>
+        <button class="button" type="submit">Login</button>
+      </form>
+    </div>` : ''}
   </body>
 </html>`;
 
@@ -343,35 +356,9 @@ app.get('/settings', (req, res) => {
     <title>Settings</title>
     <style>body{font-family:Arial,sans-serif;margin:2rem;} input,textarea{width:100%;padding:0.5rem;margin:0.4rem 0;} button{padding:0.55rem 1rem;background:#0969da;color:white;border:none;border-radius:6px;} a.button{display:inline-block;padding:0.5rem 1rem;background:#333;color:white;text-decoration:none;border-radius:6px;}</style>
   </head>
-  <script>
-    const advancedToggle = document.getElementById('advancedToggle');
-    const simpleSchedule = document.getElementById('simpleSchedule');
-    const advancedSchedule = document.getElementById('advancedSchedule');
-    const cronHidden = document.getElementById('CRON_SCHEDULE');
-    const cronTime = document.getElementById('cronTime');
-    const cronRaw = document.getElementById('cronRaw');
-    const dayBoxes = document.querySelectorAll('.cron-day');
-
-    advancedToggle.addEventListener('change', () => {
-      simpleSchedule.style.display = advancedToggle.checked ? 'none' : '';
-      advancedSchedule.style.display = advancedToggle.checked ? '' : 'none';
-    });
-
-    document.querySelector('form').addEventListener('submit', () => {
-      if (advancedToggle.checked) {
-        cronHidden.value = cronRaw.value.trim();
-        return;
-      }
-
-      const [hour, minute] = (cronTime.value || '02:00').split(':');
-      const days = Array.from(dayBoxes).filter((box) => box.checked).map((box) => box.value);
-      const dayField = days.length ? days.join(',') : '*';
-      cronHidden.value = Number(minute) + ' ' + Number(hour) + ' * * ' + dayField;
-    });
-  </script>
   <body>
     <h1>Backup Settings</h1>
-    <p>Signed in as: <strong>${userId}</strong></p>
+    <p>Signed in as: <strong>${getDisplayName(req)}</strong></p>
     <a class="button" href="/">Back to dashboard</a>
     <form method="POST" action="/settings">
       <label>Actual Server URL<input name="ACTUAL_SERVER_URL" value="${(config.ACTUAL_SERVER_URL || '').replace(/"/g, '&quot;')}" /></label>
@@ -407,6 +394,32 @@ app.get('/settings', (req, res) => {
       </div>
       <button type="submit">Save Settings</button>
     </form>
+	<script>
+    const advancedToggle = document.getElementById('advancedToggle');
+    const simpleSchedule = document.getElementById('simpleSchedule');
+    const advancedSchedule = document.getElementById('advancedSchedule');
+    const cronHidden = document.getElementById('CRON_SCHEDULE');
+    const cronTime = document.getElementById('cronTime');
+    const cronRaw = document.getElementById('cronRaw');
+    const dayBoxes = document.querySelectorAll('.cron-day');
+
+    advancedToggle.addEventListener('change', () => {
+      simpleSchedule.style.display = advancedToggle.checked ? 'none' : '';
+      advancedSchedule.style.display = advancedToggle.checked ? '' : 'none';
+    });
+
+    document.querySelector('form').addEventListener('submit', () => {
+      if (advancedToggle.checked) {
+        cronHidden.value = cronRaw.value.trim();
+        return;
+      }
+
+      const [hour, minute] = (cronTime.value || '02:00').split(':');
+      const days = Array.from(dayBoxes).filter((box) => box.checked).map((box) => box.value);
+      const dayField = days.length ? days.join(',') : '*';
+      cronHidden.value = Number(minute) + ' ' + Number(hour) + ' * * ' + dayField;
+    });
+  </script>
   </body>
 </html>`;
 
@@ -434,8 +447,7 @@ app.post('/settings', (req, res) => {
 
 app.get('/auth/login', async (req, res) => {
   if (!oidcEnabled) {
-    req.session.userId = 'demo-user';
-    return res.redirect('/');
+    return res.status(404).send('OIDC login is not configured');
   }
 
   const codeVerifier = openidClient.randomPKCECodeVerifier();
@@ -460,10 +472,27 @@ app.get('/auth/login', async (req, res) => {
   res.redirect(authorizationUrl.href);
 });
 
+app.post('/auth/local-login', (req, res) => {
+  if (!localAuthEnabled) {
+    return res.status(404).send('Local login is not configured');
+  }
+
+  const { username, password } = req.body || {};
+  const usernameMatches = isNonEmpty(username) && safeCompare(username, localAuthUsername);
+  const passwordMatches = isNonEmpty(password) && safeCompare(password, localAuthPassword);
+
+  if (!usernameMatches || !passwordMatches) {
+    return renderDashboard(req, res, { loginError: 'Invalid username or password' });
+  }
+
+  req.session.userId = adminUserId;
+  req.session.displayName = localAuthUsername;
+  res.redirect('/');
+});
+
 app.get('/auth/callback', async (req, res) => {
   if (!oidcEnabled) {
-    req.session.userId = 'demo-user';
-    return res.redirect('/');
+    return res.status(404).send('OIDC login is not configured');
   }
 
   try {
@@ -569,10 +598,6 @@ function resolveDisplayName(claims, fallbackUserId) {
   );
 }
 
-function getUserId(req) {
-  return req.session?.userId || 'anonymous';
-}
-
 function getDisplayName(req) {
   return req.session?.displayName || getUserId(req);
 }
@@ -597,4 +622,36 @@ function parseCronForUI(cron) {
   const [, minute, hour, dayField] = match;
   const days = dayField === '*' ? [] : dayField.split(',').map(Number);
   return { mode: 'simple', hour: Number(hour), minute: Number(minute), days };
+}
+
+function readSecret(envVar, fileEnvVar, defaultFile) {
+  const inline = process.env[envVar];
+  if (isNonEmpty(inline)) {
+    return inline.trim();
+  }
+
+  const secretPath = process.env[fileEnvVar] || defaultFile;
+  try {
+    if (secretPath && fs.existsSync(secretPath)) {
+      return fs.readFileSync(secretPath, 'utf8').trim();
+    }
+  } catch (error) {
+    console.warn(`${logPrefix} Failed to read secret file ${secretPath}:`, error.message);
+  }
+
+  return '';
+}
+
+const localAuthUsername = readSecret('ADMIN_USERNAME', 'ADMIN_USERNAME_FILE', '/run/secrets/admin_username');
+const localAuthPassword = readSecret('ADMIN_PASSWORD', 'ADMIN_PASSWORD_FILE', '/run/secrets/admin_password');
+const localAuthEnabled = isNonEmpty(localAuthUsername) && isNonEmpty(localAuthPassword);
+
+function safeCompare(a, b) {
+  const bufA = Buffer.from(String(a));
+  const bufB = Buffer.from(String(b));
+  if (bufA.length !== bufB.length) {
+    crypto.timingSafeEqual(bufA, bufA); // burn equivalent time either way
+    return false;
+  }
+  return crypto.timingSafeEqual(bufA, bufB);
 }
