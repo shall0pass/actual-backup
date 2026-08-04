@@ -169,7 +169,7 @@ async function runBackup({ userId = defaultUserId, configOverride = {} } = {}) {
     }
   };
 
-  const compressBudget = (runNumber) => {
+  const compressBudget = () => {
     const today = fdate.format(new Date(), 'yyyy-MM-dd-HH-mm');
     const budgetList = fs.readdirSync(activeDataDir);
 
@@ -249,7 +249,7 @@ async function runBackup({ userId = defaultUserId, configOverride = {} } = {}) {
     await actual.shutdown();
 
 
-    console.log(`${logPrefix} ✅ Budget sync complete. Starting compression for run ${runNumber}.`);
+    console.log(`${logPrefix} ✅ Budget sync complete.`);
     compressBudget();
     applyRetentionPolicy();
 
