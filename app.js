@@ -256,7 +256,7 @@ async function runBackup({ userId = defaultUserId, configOverride = {} } = {}) {
     return {
       userId: activeUserId,
       dataDir: activeDataDir,
-      syncId,
+      sync_id,
       serverUrl: url,
     };
   } catch (err) {
