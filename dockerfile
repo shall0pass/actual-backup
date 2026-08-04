@@ -9,7 +9,7 @@ WORKDIR /app
 RUN npm ci --omit=dev
 
 FROM node:24-bookworm-slim
-RUN apt-get update && apt-get install -y openssl cron
+RUN apt-get update && apt-get install -y openssl cron tzdata
 
 COPY entrypoint.sh /usr/local/bin/entrypoint.sh
 RUN chmod +x /usr/local/bin/entrypoint.sh
