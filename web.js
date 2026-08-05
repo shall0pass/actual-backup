@@ -296,24 +296,29 @@ function renderDashboard(req, res, options = {}) {
       <a class="button" href="/api/run">Run backup</a>
       <a class="button" href="/logout">Logout</a>
     </div>
-    <div class="card">
-      <h2>Backups</h2>
-      <table>
-        <thead>
-          <tr><th>Name</th><th>Size</th><th>Modified</th><th>Action</th></tr>
-        </thead>
-        <tbody>
-          ${backups.length === 0
-            ? '<tr><td colspan="4">No backups found for this user yet.</td></tr>'
-            : backups
-                .map(
-                  (backup) =>
-                    `<tr><td>${backup.name}</td><td>${Math.round(backup.size / 1024)} KB</td><td>${backup.modifiedAt}</td><td><a href="/api/backups/${encodeURIComponent(backup.name)}">Download</a></td></tr>`
-                )
-                .join('')}
-        </tbody>
-      </table>
-    </div>
+	<div class="card">
+	  <h2>Backups</h2>
+	  <form method="POST" action="/backups/delete">
+		<table>
+		  <thead>
+			<tr><th></th><th>Name</th><th>Size</th><th>Modified</th><th>Action</th></tr>
+		  </thead>
+		  <tbody>
+			${backups.length === 0
+			  ? '<tr><td colspan="5">No backups found for this user yet.</td></tr>'
+			  : backups
+				  .map(
+					(backup) =>
+					  `<tr><td><input type="checkbox" name="names" value="${backup.name.replace(/"/g, '&quot;')}" /></td><td>${backup.name}</td><td>${Math.round(backup.size / 1024)} KB</td><td>${backup.modifiedAt}</td><td><a href="/api/backups/${encodeURIComponent(backup.name)}">Download</a></td></tr>`
+				  )
+				  .join('')}
+		  </tbody>
+		</table>
+		${backups.length > 0
+		  ? `<button type="submit" class="button" style="margin-top:0.5rem;" onclick="return confirm('Delete selected backups? This cannot be undone.');">Delete selected</button>`
+		  : ''}
+	  </form>
+	</div>
     <div class="card">
       <h2>Stored config snapshot</h2>
       <pre>${JSON.stringify(config, null, 2)}</pre>
@@ -385,6 +390,20 @@ app.get('/settings', (req, res) => {
           <textarea id="cronRaw" placeholder="e.g. 0 2 * * *">${parsedCron.mode === 'advanced' ? parsedCron.raw.replace(/</g, '&lt;') : ''}</textarea>
         </div>
 
+		<label>Keep most recent backups<input type="number" min="1" name="RETENTION_KEEP_COUNT" value="${config.RETENTION_KEEP_COUNT || 10}" /></label>
+		<label style="display:block;">
+		  <input type="checkbox" name="RETENTION_KEEP_MONTHLY" ${config.RETENTION_KEEP_MONTHLY === false || config.RETENTION_KEEP_MONTHLY === 'false' ? '' : 'checked'} style="width:auto;display:inline-block;margin-right:0.4rem;" />
+		  Keep one backup per month
+		</label>
+		<label style="display:block;">
+		  <input type="checkbox" name="RETENTION_KEEP_MONTHLY" ${config.RETENTION_KEEP_MONTHLY === false || config.RETENTION_KEEP_MONTHLY === 'false' ? '' : 'checked'} style="width:auto;display:inline-block;margin-right:0.4rem;" />
+		  Keep one backup per month
+		</label>
+		<label style="display:block;">
+		  <input type="checkbox" name="RETENTION_KEEP_YEARLY" ${config.RETENTION_KEEP_YEARLY === false || config.RETENTION_KEEP_YEARLY === 'false' ? '' : 'checked'} style="width:auto;display:inline-block;margin-right:0.4rem;" />
+		  Keep one backup per year
+		</label>
+
         <label style="display:block;margin-top:0.25rem;">
           <input type="checkbox" id="advancedToggle" ${parsedCron.mode === 'advanced' ? 'checked' : ''} style="width:auto;display:inline-block;margin-right:0.4rem;" />
           Use a custom cron expression instead
@@ -438,8 +457,11 @@ app.post('/settings', (req, res) => {
     ACTUAL_SYNC_ID: String(req.body.ACTUAL_SYNC_ID || ''),
     ACTUAL_ENCRYPTION_PASSWORD: String(req.body.ACTUAL_ENCRYPTION_PASSWORD || ''),
     CRON_SCHEDULE: String(req.body.CRON_SCHEDULE || ''),
-    BACKUP_NAME: String(req.body.BACKUP_NAME || ''),
-  };
+	BACKUP_NAME: String(req.body.BACKUP_NAME || ''),
+	RETENTION_KEEP_COUNT: String(req.body.RETENTION_KEEP_COUNT || '10'),
+	RETENTION_KEEP_MONTHLY: req.body.RETENTION_KEEP_MONTHLY === 'on' ? 'true' : 'false',
+	RETENTION_KEEP_YEARLY: req.body.RETENTION_KEEP_YEARLY === 'on' ? 'true' : 'false',
+	};
 
   setUserConfig(userId, payload);
   res.redirect('/');
@@ -559,6 +581,34 @@ app.get('/api/backups/:name', requireAuth, (req, res) => {
   }
 
   res.download(backupPath);
+});
+
+app.post('/backups/delete', requireAuth, (req, res) => {
+  const userId = getUserId(req);
+  const userDataDir = getUserDataDir(userId);
+
+  let names = req.body.names || [];
+  if (!Array.isArray(names)) {
+    names = [names];
+  }
+
+  let deletedCount = 0;
+  for (const rawName of names) {
+    const safeName = path.basename(String(rawName)); // strip any path traversal attempt
+    if (!safeName.endsWith('.zip')) continue;
+
+    const filePath = path.join(userDataDir, safeName);
+    try {
+      if (fs.existsSync(filePath)) {
+        fs.unlinkSync(filePath);
+        deletedCount++;
+      }
+    } catch (error) {
+      console.error(`${logPrefix} Failed to delete backup ${safeName} for ${userId}:`, error.message);
+    }
+  }
+
+  res.redirect(`/?deleteStatus=${deletedCount > 0 ? 'success' : 'none'}&deleteCount=${deletedCount}`);
 });
 
 async function start() {

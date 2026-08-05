@@ -86,6 +86,21 @@ async function runBackup({ userId = defaultUserId, configOverride = {} } = {}) {
   const sync_id = configOverride.ACTUAL_SYNC_ID || persistedConfig.ACTUAL_SYNC_ID || '';
   const ACTUAL_ENCRYPTION_PASSWORD = configOverride.ACTUAL_ENCRYPTION_PASSWORD || persistedConfig.ACTUAL_ENCRYPTION_PASSWORD || '';
 
+	const keepCountRaw = configOverride.RETENTION_KEEP_COUNT ?? persistedConfig.RETENTION_KEEP_COUNT;
+	const keepCount = Number.isFinite(Number(keepCountRaw)) && Number(keepCountRaw) > 0
+	  ? Math.floor(Number(keepCountRaw))
+	  : 10;
+
+	const keepMonthlyRaw = configOverride.RETENTION_KEEP_MONTHLY ?? persistedConfig.RETENTION_KEEP_MONTHLY;
+	const keepMonthly = keepMonthlyRaw === undefined || keepMonthlyRaw === ''
+	  ? true
+	  : (keepMonthlyRaw === true || keepMonthlyRaw === 'true' || keepMonthlyRaw === 'on');
+	const keepYearlyRaw = configOverride.RETENTION_KEEP_YEARLY ?? persistedConfig.RETENTION_KEEP_YEARLY;
+	const keepYearly = keepYearlyRaw === undefined || keepYearlyRaw === ''
+	  ? true
+	  : (keepYearlyRaw === true || keepYearlyRaw === 'true' || keepYearlyRaw === 'on');
+
+
   if (!actual_url || !password || !sync_id) {
     throw new Error('Missing Actual backup configuration for this user. Save ACTUAL_SERVER_URL, ACTUAL_SERVER_PASSWORD, and ACTUAL_SYNC_ID in the web UI before running a backup.');
   }
@@ -201,7 +216,7 @@ async function runBackup({ userId = defaultUserId, configOverride = {} } = {}) {
     }
   };
 
-  const applyRetentionPolicy = () => {
+const applyRetentionPolicy = ({ keepCount, keepMonthly, keepYearly }) => {
     const files = fs.readdirSync(activeDataDir)
       .filter((name) => name.endsWith('.zip'))
       .map((name) => ({
@@ -212,19 +227,33 @@ async function runBackup({ userId = defaultUserId, configOverride = {} } = {}) {
       .filter((file) => file.date !== null)
       .sort((a, b) => b.date - a.date);
 
-    const latest10 = new Set(files.slice(0, 10).map((f) => f.name));
+    const latestKeep = new Set(files.slice(0, keepCount).map((f) => f.name));
     const monthlyKeep = new Set();
-    const seenMonths = new Set();
+    const yearlyKeep = new Set();
 
-    for (const file of files) {
-      const key = `${file.date.getFullYear()}-${file.date.getMonth() + 1}`;
-      if (!seenMonths.has(key)) {
-        seenMonths.add(key);
-        monthlyKeep.add(file.name);
+    if (keepMonthly) {
+      const seenMonths = new Set();
+      for (const file of files) {
+        const key = `${file.date.getFullYear()}-${file.date.getMonth() + 1}`;
+        if (!seenMonths.has(key)) {
+          seenMonths.add(key);
+          monthlyKeep.add(file.name);
+        }
       }
     }
 
-    const keep = new Set([...latest10, ...monthlyKeep]);
+    if (keepYearly) {
+      const seenYears = new Set();
+      for (const file of files) {
+        const key = String(file.date.getFullYear());
+        if (!seenYears.has(key)) {
+          seenYears.add(key);
+          yearlyKeep.add(file.name);
+        }
+      }
+    }
+
+    const keep = new Set([...latestKeep, ...monthlyKeep, ...yearlyKeep]);
 
     for (const file of files) {
       if (!keep.has(file.name)) {
@@ -251,7 +280,7 @@ async function runBackup({ userId = defaultUserId, configOverride = {} } = {}) {
 
     console.log(`${logPrefix} ✅ Budget sync complete.`);
     compressBudget();
-    applyRetentionPolicy();
+    applyRetentionPolicy({ keepCount, keepMonthly, keepYearly });
 
     return {
       userId: activeUserId,
