@@ -395,10 +395,7 @@ app.get('/settings', (req, res) => {
 		  <input type="checkbox" name="RETENTION_KEEP_MONTHLY" ${config.RETENTION_KEEP_MONTHLY === false || config.RETENTION_KEEP_MONTHLY === 'false' ? '' : 'checked'} style="width:auto;display:inline-block;margin-right:0.4rem;" />
 		  Keep one backup per month
 		</label>
-		<label style="display:block;">
-		  <input type="checkbox" name="RETENTION_KEEP_MONTHLY" ${config.RETENTION_KEEP_MONTHLY === false || config.RETENTION_KEEP_MONTHLY === 'false' ? '' : 'checked'} style="width:auto;display:inline-block;margin-right:0.4rem;" />
-		  Keep one backup per month
-		</label>
+
 		<label style="display:block;">
 		  <input type="checkbox" name="RETENTION_KEEP_YEARLY" ${config.RETENTION_KEEP_YEARLY === false || config.RETENTION_KEEP_YEARLY === 'false' ? '' : 'checked'} style="width:auto;display:inline-block;margin-right:0.4rem;" />
 		  Keep one backup per year
