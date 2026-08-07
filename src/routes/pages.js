@@ -4,11 +4,26 @@ const { getUserConfig, setUserConfig } = require('../state');
 const { registerUserSchedule } = require('../scheduler');
 const { renderDashboard } = require('../views/dashboard');
 const { renderSettingsPage } = require('../views/settings');
+const { runBackup, loadUserConfig } = require('../app');
+const { requireAuth } = require('../auth');
 
 const router = express.Router();
 
 router.get('/', (req, res) => {
   renderDashboard(req, res);
+});
+
+router.get('/run-backup', requireAuth, async (req, res) => {
+  const userId = getUserId(req);
+
+  try {
+    const config = loadUserConfig(userId);
+    await runBackup({ userId, configOverride: config });
+  } catch (error) {
+    console.error('Backup run failed:', error);
+  }
+
+  res.redirect('/');
 });
 
 router.get('/health', (req, res) => {

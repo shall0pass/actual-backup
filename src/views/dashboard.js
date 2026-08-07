@@ -55,7 +55,7 @@ function renderDashboard(req, res) {
       <p><strong>OIDC mode:</strong> ${isOidcEnabled() ? 'enabled' : 'demo fallback'}</p>
       <p><strong>Admin mode:</strong> ${isAdminUser(userId) ? 'yes' : 'no'}</p>
       <a class="button" href="/settings">Settings</a>
-      <a class="button" href="/api/run">Run backup</a>
+      <a class="button" href="/run-backup">Run backup</a>
       <a class="button" href="/logout">Logout</a>
     </div>
     <div class="card">
