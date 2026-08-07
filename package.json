@@ -13,7 +13,7 @@
   "name": "actual-backup",
   "version": "26.8.0",
   "description": "Automatically backup budget files",
-  "main": "app.js",
+  "main": "src/app.js",
   "repository": "https://github.com/shall0pass/actual-backup",
   "author": "shall0pass",
   "license": "GPL-3.0",
