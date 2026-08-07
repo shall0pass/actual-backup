@@ -3,7 +3,7 @@ const _7z = require('7zip-min');
 const fdate = require('date-fns');
 const fs = require('fs');
 const path = require('path');
-const { version: appVersion } = require('./package.json');
+const { version: appVersion } = require('../package.json');
 
 const debugEnabled = String(process.env.DEBUG || 'false').toLowerCase() === 'true';
 const dataRoot = path.resolve(process.env.BACKUP_DATA_ROOT || './data');
