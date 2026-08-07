@@ -5,6 +5,7 @@ const { registerUserSchedule } = require('../scheduler');
 const { renderDashboard } = require('../views/dashboard');
 const { renderSettingsPage } = require('../views/settings');
 const { runBackup, loadUserConfig } = require('../app');
+const { deleteBackup } = require('../backups');
 const { requireAuth } = require('../auth');
 
 const router = express.Router();
@@ -21,6 +22,18 @@ router.get('/run-backup', requireAuth, async (req, res) => {
     await runBackup({ userId, configOverride: config });
   } catch (error) {
     console.error('Backup run failed:', error);
+  }
+
+  res.redirect('/');
+});
+
+router.post('/backups/delete', requireAuth, (req, res) => {
+  const userId = getUserId(req);
+  const selected = req.body.backupNames;
+  const names = Array.isArray(selected) ? selected : selected ? [selected] : [];
+
+  for (const name of names) {
+    deleteBackup(userId, name);
   }
 
   res.redirect('/');
@@ -61,3 +74,5 @@ router.post('/settings', (req, res) => {
 });
 
 module.exports = router;
+
+

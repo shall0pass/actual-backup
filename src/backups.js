@@ -31,7 +31,28 @@ function getBackupList(userId) {
     .sort((a, b) => new Date(b.modifiedAt) - new Date(a.modifiedAt));
 }
 
+function deleteBackup(userId, name) {
+  const userDataDir = getUserDataDir(userId);
+  // path.basename strips any directory components, so a name like
+  // "../../etc/passwd" collapses to "passwd" and can't escape the user's dir.
+  const safeName = path.basename(String(name || ''));
+
+  if (!safeName.endsWith('.zip')) {
+    return false;
+  }
+
+  const backupPath = path.join(userDataDir, safeName);
+
+  if (fs.existsSync(backupPath)) {
+    fs.unlinkSync(backupPath);
+    return true;
+  }
+
+  return false;
+}
+
 module.exports = {
   getUserDataDir,
   getBackupList,
+  deleteBackup,
 };

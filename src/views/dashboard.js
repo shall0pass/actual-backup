@@ -75,6 +75,26 @@ function renderDashboard(req, res) {
                 .join('')}
         </tbody>
       </table>
+      <form method="POST" action="/backups/delete" onsubmit="return confirm('Delete the selected backups? This cannot be undone.');">
+        <table>
+          <thead>
+            <tr><th></th><th>Name</th><th>Size</th><th>Modified</th><th>Action</th></tr>
+          </thead>
+          <tbody>
+            ${backups.length === 0
+              ? '<tr><td colspan="5">No backups found for this user yet.</td></tr>'
+              : backups
+                  .map(
+                    (backup) =>
+                      `<tr><td><input type="checkbox" name="backupNames" value="${backup.name.replace(/"/g, '&quot;')}" /></td><td>${backup.name}</td><td>${Math.round(backup.size / 1024)} KB</td><td>${backup.modifiedAt}</td><td><a href="/api/backups/${encodeURIComponent(backup.name)}">Download</a></td></tr>`
+                  )
+                  .join('')}
+          </tbody>
+        </table>
+        ${backups.length > 0
+          ? '<button type="submit" style="margin-top:0.75rem;background:#d1242f;color:white;border:none;padding:0.5rem 1rem;border-radius:6px;cursor:pointer;">Delete selected</button>'
+          : ''}
+      </form>
     </div>
     <div class="card">
       <h2>Stored config snapshot</h2>
