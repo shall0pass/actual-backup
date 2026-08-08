@@ -3,6 +3,7 @@ services:
     build:
       context: .
       dockerfile: dockerfile
+    image: ghcr.io/shall0pass/actual-backup:latest
     container_name: actual-backup
     ports:
       - "3000:3000"
@@ -11,10 +12,19 @@ services:
       - DEBUG=${DEBUG:-false}
       - WEB_PORT=3000
       - BACKUP_DATA_ROOT=/app/data
-      - OIDC_ISSUER=${OIDC_ISSUER:-}
-      - OIDC_CLIENT_ID=${OIDC_CLIENT_ID:-}
-      - OIDC_CLIENT_SECRET=${OIDC_CLIENT_SECRET:-}
-      - OIDC_REDIRECT_URI=${OIDC_REDIRECT_URI:-http://localhost:3000/auth/callback}
       - SESSION_SECRET=${SESSION_SECRET:-actual-backup-dev-session}
+
+      #choose OIDC (Authentik, Keycloak, etc), basic login using ADMIN_* credentials, or both.
+      #One of the login methods is necessery
+
+      #OIDC variables for actual-backup
+      - OIDC_ISSUER=${OIDC_ISSUER:-} #optional
+      - OIDC_CLIENT_ID=${OIDC_CLIENT_ID:-}  #optional
+      - OIDC_CLIENT_SECRET=${OIDC_CLIENT_SECRET:-}  #optional
+      - OIDC_REDIRECT_URI=${OIDC_REDIRECT_URI:-http://localhost:3000/auth/callback}  #optional
+      
+      #Local authorization variables
+      - ADMIN_USERNAME=${ADMIN_USERNAME} #optional
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD} #optional
     volumes:
       - ./local_dir:/app/data
