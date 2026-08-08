@@ -16,5 +16,7 @@ services:
       - OIDC_CLIENT_SECRET=${OIDC_CLIENT_SECRET:-}
       - OIDC_REDIRECT_URI=${OIDC_REDIRECT_URI:-http://localhost:3000/auth/callback}
       - SESSION_SECRET=${SESSION_SECRET:-actual-backup-dev-session}
+      - ADMIN_USER=${ADMIN_USER}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD}
     volumes:
       - ./local_dir:/app/data
