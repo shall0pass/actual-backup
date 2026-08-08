@@ -117,6 +117,9 @@ const STYLES = `
 
   .empty-state { text-align: center; padding: 1.25rem 1rem; color: var(--ink-muted); }
 
+  .banner-success { border-color: var(--accent); background: var(--accent-soft); color: var(--accent-hover); font-weight: 600; }
+  .banner-error { border-color: var(--danger); background: #FBEAEA; color: var(--danger-hover); font-weight: 600; }
+
   @media (prefers-reduced-motion: reduce) {
     * { transition: none !important; }
   }

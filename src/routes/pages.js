@@ -1,10 +1,12 @@
 const express = require('express');
+const { logPrefix } = require('../config');
 const { getUserId, getDisplayName, isOidcEnabled, requireAuth } = require('../auth');
 const { getUserConfigById, upsertUserConfig, deleteUserConfigById } = require('../state');
 const { registerConfigSchedule, unregisterConfigSchedule } = require('../scheduler');
 const { renderDashboard } = require('../views/dashboard');
 const { renderSettingsPage } = require('../views/settings');
 const { deleteBackup } = require('../backups');
+const { runBackup } = require('../app');
 
 const router = express.Router();
 
@@ -45,6 +47,26 @@ router.post('/backups/:configId/delete', requireAuth, (req, res) => {
   }
 
   res.redirect(`/?deleteStatus=${deletedCount > 0 ? 'success' : 'none'}&deleteCount=${deletedCount}`);
+});
+
+router.post('/configs/:configId/run', requireAuth, async (req, res) => {
+  const userId = getUserId(req);
+  const { configId } = req.params;
+  const config = getUserConfigById(userId, configId);
+
+  if (!config) {
+    return res.status(404).send('Configuration not found');
+  }
+
+  const label = encodeURIComponent(config.BACKUP_NAME || 'Untitled budget');
+
+  try {
+    await runBackup({ userId, configId, configOverride: config });
+    res.redirect(`/?runStatus=success&runConfig=${label}`);
+  } catch (error) {
+    console.error(`${logPrefix} Manual backup run failed for ${userId}/${configId}:`, error.message);
+    res.redirect(`/?runStatus=error&runConfig=${label}&runError=${encodeURIComponent(error.message)}`);
+  }
 });
 
 router.get('/health', (req, res) => {
