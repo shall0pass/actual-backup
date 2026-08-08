@@ -1,4 +1,5 @@
 const path = require('path');
+const fs = require('fs');
 const { version: appVersion } = require('../package.json');
 
 const debugEnabled = String(process.env.DEBUG || 'false').toLowerCase() === 'true';
@@ -52,6 +53,28 @@ const oidcEnabledInitial = Boolean(
     isNonEmpty(oidcConfig.redirectUri)
 );
 
+function readSecret(envVar, fileEnvVar, defaultFile) {
+  const inline = process.env[envVar];
+  if (isNonEmpty(inline)) {
+    return inline.trim();
+  }
+
+  const secretPath = process.env[fileEnvVar] || defaultFile;
+  try {
+    if (secretPath && fs.existsSync(secretPath)) {
+      return fs.readFileSync(secretPath, 'utf8').trim();
+    }
+  } catch (error) {
+    console.warn(`${logPrefix} Failed to read secret file ${secretPath}:`, error.message);
+  }
+
+  return '';
+}
+
+const localAuthUsername = readSecret('ADMIN_USERNAME', 'ADMIN_USERNAME_FILE', '/run/secrets/admin_username');
+const localAuthPassword = readSecret('ADMIN_PASSWORD', 'ADMIN_PASSWORD_FILE', '/run/secrets/admin_password');
+const localAuthEnabled = isNonEmpty(localAuthUsername) && isNonEmpty(localAuthPassword);
+
 module.exports = {
   appVersion,
   debugEnabled,
@@ -64,4 +87,7 @@ module.exports = {
   oidcConfig,
   oidcEnabledInitial,
   isNonEmpty,
+  localAuthUsername,
+  localAuthPassword,
+  localAuthEnabled,
 };

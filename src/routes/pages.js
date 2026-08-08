@@ -4,7 +4,6 @@ const { getUserConfig, setUserConfig } = require('../state');
 const { registerUserSchedule } = require('../scheduler');
 const { renderDashboard } = require('../views/dashboard');
 const { renderSettingsPage } = require('../views/settings');
-const { runBackup, loadUserConfig } = require('../app');
 const { deleteBackup } = require('../backups');
 const { requireAuth } = require('../auth');
 
@@ -14,29 +13,19 @@ router.get('/', (req, res) => {
   renderDashboard(req, res);
 });
 
-router.get('/run-backup', requireAuth, async (req, res) => {
-  const userId = getUserId(req);
-
-  try {
-    const config = loadUserConfig(userId);
-    await runBackup({ userId, configOverride: config });
-  } catch (error) {
-    console.error('Backup run failed:', error);
-  }
-
-  res.redirect('/');
-});
-
 router.post('/backups/delete', requireAuth, (req, res) => {
   const userId = getUserId(req);
-  const selected = req.body.backupNames;
+  const selected = req.body.names;
   const names = Array.isArray(selected) ? selected : selected ? [selected] : [];
 
+  let deletedCount = 0;
   for (const name of names) {
-    deleteBackup(userId, name);
+    if (deleteBackup(userId, name)) {
+      deletedCount++;
+    }
   }
 
-  res.redirect('/');
+  res.redirect(`/?deleteStatus=${deletedCount > 0 ? 'success' : 'none'}&deleteCount=${deletedCount}`);
 });
 
 router.get('/health', (req, res) => {

@@ -1,8 +1,8 @@
 const { getBackupList } = require('../backups');
 const { getUserConfig } = require('../state');
-const { getUserId, getDisplayName, isAdminUser, isOidcEnabled } = require('../auth');
+const { getUserId, getDisplayName, isAdminUser, isOidcEnabled, isLocalAuthEnabled } = require('../auth');
 
-function renderLoggedOutDashboard() {
+function renderLoggedOutDashboard(loginError = '') {
   return `<!doctype html>
 <html>
   <head>
@@ -11,24 +11,37 @@ function renderLoggedOutDashboard() {
     <style>
       body { font-family: Arial, sans-serif; margin: 2rem; }
       .card { border: 1px solid #d0d7de; border-radius: 8px; padding: 1rem; margin-top: 1rem; }
-      a.button { display: inline-block; padding: 0.5rem 1rem; background: #0969da; color: white; text-decoration: none; border-radius: 6px; margin-right: 0.5rem; }
+      a.button, button.button { display: inline-block; padding: 0.5rem 1rem; background: #0969da; color: white; text-decoration: none; border-radius: 6px; margin-right: 0.5rem; border: none; cursor: pointer; font-size: 1rem; }
+      input { width: 100%; padding: 0.5rem; margin: 0.4rem 0; }
+      .error { color: #cf222e; }
     </style>
   </head>
   <body>
     <h1>Actual Backup Portal</h1>
+    ${isOidcEnabled() ? `
     <div class="card">
       <p>Please sign in to access your backup settings and backup history.</p>
-      <a class="button" href="/auth/login">Login</a>
-    </div>
+      <a class="button" href="/auth/login">Login with SSO</a>
+    </div>` : ''}
+    ${isLocalAuthEnabled() ? `
+    <div class="card">
+      <p>Admin login</p>
+      ${loginError ? `<p class="error">${loginError}</p>` : ''}
+      <form method="POST" action="/auth/local-login">
+        <label>Username<input name="username" autocomplete="username" /></label>
+        <label>Password<input type="password" name="password" autocomplete="current-password" /></label>
+        <button class="button" type="submit">Login</button>
+      </form>
+    </div>` : ''}
   </body>
 </html>`;
 }
 
-function renderDashboard(req, res) {
+function renderDashboard(req, res, options = {}) {
   const userId = getUserId(req);
 
   if (!userId || userId === 'anonymous') {
-    return res.send(renderLoggedOutDashboard());
+    return res.send(renderLoggedOutDashboard(options.loginError || ''));
   }
 
   const backups = getBackupList(userId);
@@ -55,7 +68,7 @@ function renderDashboard(req, res) {
       <p><strong>OIDC mode:</strong> ${isOidcEnabled() ? 'enabled' : 'demo fallback'}</p>
       <p><strong>Admin mode:</strong> ${isAdminUser(userId) ? 'yes' : 'no'}</p>
       <a class="button" href="/settings">Settings</a>
-      <a class="button" href="/run-backup">Run backup</a>
+      <a class="button" href="/api/run">Run backup</a>
       <a class="button" href="/logout">Logout</a>
     </div>
     <div class="card">
@@ -71,7 +84,7 @@ function renderDashboard(req, res) {
               : backups
                   .map(
                     (backup) =>
-                      `<tr><td><input type="checkbox" name="backupNames" value="${backup.name.replace(/"/g, '&quot;')}" /></td><td>${backup.name}</td><td>${Math.round(backup.size / 1024)} KB</td><td>${backup.modifiedAt}</td><td><a href="/api/backups/${encodeURIComponent(backup.name)}">Download</a></td></tr>`
+                      `<tr><td><input type="checkbox" name="names" value="${backup.name.replace(/"/g, '&quot;')}" /></td><td>${backup.name}</td><td>${Math.round(backup.size / 1024)} KB</td><td>${backup.modifiedAt}</td><td><a href="/api/backups/${encodeURIComponent(backup.name)}">Download</a></td></tr>`
                   )
                   .join('')}
           </tbody>

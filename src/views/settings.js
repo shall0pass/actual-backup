@@ -26,13 +26,10 @@ function renderSettingsPage(userId, config) {
     ? `${pad2(parsedCron.hour)}:${pad2(parsedCron.minute)}`
     : '02:00';
   const retentionKeepCount = config.RETENTION_KEEP_COUNT || '10';
-  // Preserve prior behavior for existing users: monthly retention was
-  // always on before this setting existed, so default it to checked
-  // when the key has never been saved. Yearly is a new option, defaults off.
-  const retentionKeepMonthly = config.RETENTION_KEEP_MONTHLY === undefined
-    ? true
-    : config.RETENTION_KEEP_MONTHLY === 'true';
-  const retentionKeepYearly = config.RETENTION_KEEP_YEARLY === 'true';
+  // Both monthly and yearly retention default to checked unless the user
+  // has explicitly turned them off (mirrors the two-file version's default).
+  const retentionKeepMonthly = !(config.RETENTION_KEEP_MONTHLY === false || config.RETENTION_KEEP_MONTHLY === 'false');
+  const retentionKeepYearly = !(config.RETENTION_KEEP_YEARLY === false || config.RETENTION_KEEP_YEARLY === 'false');
 
   return `<!doctype html>
 <html>
