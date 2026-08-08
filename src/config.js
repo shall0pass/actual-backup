@@ -1,3 +1,4 @@
+const fs = require('fs');
 const path = require('path');
 const { version: appVersion } = require('../package.json');
 
@@ -7,7 +8,7 @@ const port = Number(process.env.WEB_PORT || 3000);
 const dataRoot = path.resolve(process.env.BACKUP_DATA_ROOT || './data');
 const stateFile = path.join(dataRoot, '.actual-backup-store.json');
 const sessionStorePath = path.join(dataRoot, '.sessions');
-const adminUserId = process.env.ADMIN_USER_ID || 'demo-user';
+const adminUserId = process.env.ADMIN_USER_ID || 'admin';
 
 function normalizeRedirectUri(rawRedirectUri) {
   const candidate = String(rawRedirectUri || '').trim();
@@ -28,12 +29,51 @@ function normalizeRedirectUri(rawRedirectUri) {
 
 const isNonEmpty = (value) => typeof value === 'string' && value.trim().length > 0;
 
+function readSecret(envVar, fileEnvVar, defaultFile) {
+  const inline = process.env[envVar];
+
+  if (isNonEmpty(inline)) {
+    return inline.trim();
+  }
+
+  const secretPath = process.env[fileEnvVar] || defaultFile;
+
+  try {
+    if (secretPath && fs.existsSync(secretPath)) {
+      return fs.readFileSync(secretPath, 'utf8').trim();
+    }
+  } catch (error) {
+    console.warn(
+      `${logPrefix} Failed to read secret file ${secretPath}:`,
+      error.message
+    );
+  }
+
+  return '';
+}
+
 const oidcConfig = {
   issuer: process.env.OIDC_ISSUER,
   clientId: process.env.OIDC_CLIENT_ID,
   clientSecret: process.env.OIDC_CLIENT_SECRET,
   redirectUri: normalizeRedirectUri(process.env.OIDC_REDIRECT_URI),
 };
+
+const localAuthUsername = readSecret(
+  'ADMIN_USERNAME',
+  'ADMIN_USERNAME_FILE',
+  '/run/secrets/admin_username'
+);
+
+const localAuthPassword = readSecret(
+  'ADMIN_PASSWORD',
+  'ADMIN_PASSWORD_FILE',
+  '/run/secrets/admin_password'
+);
+
+const localAuthEnabled =
+  isNonEmpty(localAuthUsername) &&
+  isNonEmpty(localAuthPassword);
 
 if (debugEnabled) {
   console.log(`${logPrefix} [DEBUG] web.js booting with DEBUG=true`);
@@ -64,4 +104,7 @@ module.exports = {
   oidcConfig,
   oidcEnabledInitial,
   isNonEmpty,
+  localAuthUsername,
+  localAuthPassword,
+  localAuthEnabled
 };
