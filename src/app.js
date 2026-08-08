@@ -86,6 +86,14 @@ async function runBackup({ userId = defaultUserId, configOverride = {} } = {}) {
   const sync_id = configOverride.ACTUAL_SYNC_ID || persistedConfig.ACTUAL_SYNC_ID || '';
   const ACTUAL_ENCRYPTION_PASSWORD = configOverride.ACTUAL_ENCRYPTION_PASSWORD || persistedConfig.ACTUAL_ENCRYPTION_PASSWORD || '';
 
+  const retentionKeepCount = Number(configOverride.RETENTION_KEEP_COUNT || persistedConfig.RETENTION_KEEP_COUNT || 10) || 10;
+  const retentionKeepMonthly = String(
+    configOverride.RETENTION_KEEP_MONTHLY ?? persistedConfig.RETENTION_KEEP_MONTHLY ?? 'true'
+  ) === 'true';
+  const retentionKeepYearly = String(
+    configOverride.RETENTION_KEEP_YEARLY ?? persistedConfig.RETENTION_KEEP_YEARLY ?? 'false'
+  ) === 'true';
+
   if (!actual_url || !password || !sync_id) {
     throw new Error('Missing Actual backup configuration for this user. Save ACTUAL_SERVER_URL, ACTUAL_SERVER_PASSWORD, and ACTUAL_SYNC_ID in the web UI before running a backup.');
   }
@@ -169,7 +177,22 @@ async function runBackup({ userId = defaultUserId, configOverride = {} } = {}) {
     }
   };
 
-  const compressBudget = () => {
+  const getNextDevRunNumber = () => {
+    const existingZips = fs.readdirSync(activeDataDir)
+      .filter((name) => name.endsWith('.zip') && /-dev-\d+\.zip$/.test(name));
+
+    let maxRunNumber = 0;
+    for (const name of existingZips) {
+      const match = name.match(/-dev-(\d+)\.zip$/);
+      if (match) {
+        maxRunNumber = Math.max(maxRunNumber, Number(match[1]));
+      }
+    }
+
+    return maxRunNumber + 1;
+  };
+
+  const compressBudget = (runNumber) => {
     const today = fdate.format(new Date(), 'yyyy-MM-dd-HH-mm');
     const budgetList = fs.readdirSync(activeDataDir);
 
@@ -184,7 +207,7 @@ async function runBackup({ userId = defaultUserId, configOverride = {} } = {}) {
         const data = fs.readFileSync(metadataPath, 'utf8');
         const obj = JSON.parse(data);
 
-        const fileName = `${obj.budgetName}-${today}`;
+        const fileName = `${obj.budgetName}-${today}-dev-${runNumber}`;
         const inPath = path.join(activeDataDir, element);
         const outPath = path.join(activeDataDir, `${fileName}.zip`);
 
@@ -212,19 +235,29 @@ async function runBackup({ userId = defaultUserId, configOverride = {} } = {}) {
       .filter((file) => file.date !== null)
       .sort((a, b) => b.date - a.date);
 
-    const latest10 = new Set(files.slice(0, 10).map((f) => f.name));
-    const monthlyKeep = new Set();
-    const seenMonths = new Set();
+    const keep = new Set(files.slice(0, retentionKeepCount).map((f) => f.name));
 
-    for (const file of files) {
-      const key = `${file.date.getFullYear()}-${file.date.getMonth() + 1}`;
-      if (!seenMonths.has(key)) {
-        seenMonths.add(key);
-        monthlyKeep.add(file.name);
+    if (retentionKeepMonthly) {
+      const seenMonths = new Set();
+      for (const file of files) {
+        const key = `${file.date.getFullYear()}-${file.date.getMonth() + 1}`;
+        if (!seenMonths.has(key)) {
+          seenMonths.add(key);
+          keep.add(file.name);
+        }
       }
     }
 
-    const keep = new Set([...latest10, ...monthlyKeep]);
+    if (retentionKeepYearly) {
+      const seenYears = new Set();
+      for (const file of files) {
+        const key = `${file.date.getFullYear()}`;
+        if (!seenYears.has(key)) {
+          seenYears.add(key);
+          keep.add(file.name);
+        }
+      }
+    }
 
     for (const file of files) {
       if (!keep.has(file.name)) {
@@ -248,14 +281,15 @@ async function runBackup({ userId = defaultUserId, configOverride = {} } = {}) {
     await verifyBudgetOpen();
     await actual.shutdown();
 
-        console.log(`${logPrefix} ✅ Budget sync complete.`);
-    compressBudget();
+    const runNumber = getNextDevRunNumber();
+    console.log(`${logPrefix} ✅ Budget sync complete. Starting compression for run ${runNumber}.`);
+    compressBudget(runNumber);
     applyRetentionPolicy();
 
     return {
       userId: activeUserId,
       dataDir: activeDataDir,
-      syncId,
+      syncId: sync_id,
       serverUrl: url,
     };
   } catch (err) {

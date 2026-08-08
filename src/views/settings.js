@@ -25,6 +25,14 @@ function renderSettingsPage(userId, config) {
   const cronTimeValue = parsedCron.mode === 'simple'
     ? `${pad2(parsedCron.hour)}:${pad2(parsedCron.minute)}`
     : '02:00';
+  const retentionKeepCount = config.RETENTION_KEEP_COUNT || '10';
+  // Preserve prior behavior for existing users: monthly retention was
+  // always on before this setting existed, so default it to checked
+  // when the key has never been saved. Yearly is a new option, defaults off.
+  const retentionKeepMonthly = config.RETENTION_KEEP_MONTHLY === undefined
+    ? true
+    : config.RETENTION_KEEP_MONTHLY === 'true';
+  const retentionKeepYearly = config.RETENTION_KEEP_YEARLY === 'true';
 
   return `<!doctype html>
 <html>
@@ -94,6 +102,18 @@ function renderSettingsPage(userId, config) {
         </label>
 
         <input type="hidden" name="CRON_SCHEDULE" id="CRON_SCHEDULE" value="${(config.CRON_SCHEDULE || '').replace(/"/g, '&quot;')}" />
+      </div>
+      <div class="retention-policy">
+        <label>Retention Policy</label>
+        <label>Number of Backups to Keep<input type="number" name="RETENTION_KEEP_COUNT" min="1" step="1" value="${retentionKeepCount}" /></label>
+        <label style="display:flex;align-items:center;gap:0.4rem;width:auto;">
+          <input type="checkbox" name="RETENTION_KEEP_MONTHLY" value="true" style="width:auto;" ${retentionKeepMonthly ? 'checked' : ''} />
+          Always keep one backup per month
+        </label>
+        <label style="display:flex;align-items:center;gap:0.4rem;width:auto;">
+          <input type="checkbox" name="RETENTION_KEEP_YEARLY" value="true" style="width:auto;" ${retentionKeepYearly ? 'checked' : ''} />
+          Always keep one backup per year
+        </label>
       </div>
       <button type="submit">Save Settings</button>
     </form>

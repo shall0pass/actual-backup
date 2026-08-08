@@ -66,6 +66,9 @@ router.post('/settings', (req, res) => {
     ACTUAL_ENCRYPTION_PASSWORD: String(req.body.ACTUAL_ENCRYPTION_PASSWORD || ''),
     CRON_SCHEDULE: String(req.body.CRON_SCHEDULE || ''),
     BACKUP_NAME: String(req.body.BACKUP_NAME || ''),
+    RETENTION_KEEP_COUNT: String(req.body.RETENTION_KEEP_COUNT || '10'),
+    RETENTION_KEEP_MONTHLY: req.body.RETENTION_KEEP_MONTHLY === 'true' ? 'true' : 'false',
+    RETENTION_KEEP_YEARLY: req.body.RETENTION_KEEP_YEARLY === 'true' ? 'true' : 'false',
   };
 
   const saved = setUserConfig(userId, payload);
@@ -74,5 +77,3 @@ router.post('/settings', (req, res) => {
 });
 
 module.exports = router;
-
-
