@@ -17,7 +17,7 @@ let oidcEnabled = oidcEnabledInitial;
 let oidcClient = null;
 
 function isOidcEnabled() {
-  return oidcEnabled;
+  return oidcEnabledInitial;
 }
 
 function isLocalAuthEnabled() {
@@ -25,8 +25,12 @@ function isLocalAuthEnabled() {
 }
 
 async function initializeOidc() {
-  if (!oidcEnabled) {
+  if (!oidcEnabledInitial) {
     return null;
+  }
+
+  if (oidcClient) {
+    return oidcClient;
   }
 
   try {
@@ -36,10 +40,11 @@ async function initializeOidc() {
       oidcConfig.clientSecret
     );
 
+    oidcEnabled = true;
     return oidcClient;
   } catch (error) {
     console.error(
-      `${logPrefix} OIDC discovery failed, continuing without OIDC:`,
+      `${logPrefix} OIDC discovery failed:`,
       error.message
     );
 
@@ -101,39 +106,55 @@ function safeCompare(a, b) {
 const router = express.Router();
 
 router.get('/auth/login', async (req, res) => {
-  if (!oidcEnabled) {
-    if (localAuthEnabled) {
-      return res.redirect('/');
+  if (oidcEnabledInitial) {
+    try {
+      if (!oidcClient) {
+        await initializeOidc();
+      }
+      if (oidcClient) {
+        const codeVerifier = openidClient.randomPKCECodeVerifier();
+        const codeChallenge =
+          await openidClient.calculatePKCECodeChallenge(codeVerifier);
+
+        const state = openidClient.randomState();
+        const nonce = openidClient.randomNonce();
+
+        req.session.oidcState = state;
+        req.session.oidcNonce = nonce;
+        req.session.oidcCodeVerifier = codeVerifier;
+
+        const authorizationUrl = openidClient.buildAuthorizationUrl(
+          oidcClient,
+          {
+            redirect_uri: oidcConfig.redirectUri,
+            response_type: 'code',
+            scope: 'openid profile email',
+            state,
+            nonce,
+            code_challenge: codeChallenge,
+            code_challenge_method: 'S256',
+          }
+        );
+
+        return res.redirect(authorizationUrl.href);
+      }
+    } catch (err) {
+      console.error(`${logPrefix} Failed to start OIDC authorization:`, err);
     }
 
-    return res.status(404).send('No authentication method is configured');
+    if (localAuthEnabled) {
+      return res.redirect('/?error=' + encodeURIComponent('SSO Login (OIDC) is currently unavailable.'));
+    }
   }
 
-  const codeVerifier = openidClient.randomPKCECodeVerifier();
-  const codeChallenge =
-    await openidClient.calculatePKCECodeChallenge(codeVerifier);
+  if (localAuthEnabled) {
+    return res.redirect('/');
+  }
 
-  const state = openidClient.randomState();
-  const nonce = openidClient.randomNonce();
-
-  req.session.oidcState = state;
-  req.session.oidcNonce = nonce;
-  req.session.oidcCodeVerifier = codeVerifier;
-
-  const authorizationUrl = openidClient.buildAuthorizationUrl(
-    oidcClient,
-    {
-      redirect_uri: oidcConfig.redirectUri,
-      response_type: 'code',
-      scope: 'openid profile email',
-      state,
-      nonce,
-      code_challenge: codeChallenge,
-      code_challenge_method: 'S256',
-    }
-  );
-
-  res.redirect(authorizationUrl.href);
+  // Fallback to demo mode if no authentication method is configured/available
+  req.session.userId = 'demo-user';
+  req.session.displayName = 'demo-user';
+  return res.redirect('/');
 });
 
 router.post('/auth/local-login', (req, res) => {
@@ -164,11 +185,20 @@ router.post('/auth/local-login', (req, res) => {
 });
 
 router.get('/auth/callback', async (req, res) => {
-  if (!oidcEnabled) {
-    return res.status(404).send('OIDC login is not configured');
+  if (!oidcEnabledInitial) {
+    req.session.userId = 'demo-user';
+    req.session.displayName = 'demo-user';
+    return res.redirect('/');
   }
 
   try {
+    if (!oidcClient) {
+      await initializeOidc();
+    }
+    if (!oidcClient) {
+      throw new Error('OIDC client is not initialized');
+    }
+
     const currentUrl = new URL(
       req.originalUrl,
       `${req.protocol}://${req.headers.host}`

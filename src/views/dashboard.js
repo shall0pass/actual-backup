@@ -39,6 +39,11 @@ function renderLoggedOutDashboard(loginError = '') {
         <button class="button" type="submit">Login</button>
       </form>
     </div>` : ''}
+    ${!oidcEnabled && !localAuthEnabled ? `
+    <div class="card">
+      <p style="text-align: center; margin-bottom: 1.5rem;">Demo mode: Click to log in without credentials.</p>
+      <a class="button" href="/auth/login">Login (Demo Mode)</a>
+    </div>` : ''}
   </body>
 </html>`;
 }
