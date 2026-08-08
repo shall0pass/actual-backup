@@ -3,8 +3,7 @@ RUN apt-get update \
     && apt-get install --no-install-recommends -y openssl \
     && rm -rf /var/lib/apt/lists/*
 COPY package*.json ./app/
-COPY app.js ./app/
-COPY web.js ./app/
+COPY src ./app/src
 WORKDIR /app
 RUN npm ci --omit=dev
 
