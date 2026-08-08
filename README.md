@@ -58,7 +58,8 @@ services:
 
   actualtap:
     image: ghcr.io/shall0pass/actualtap:${TAG}
-    
+```
+
 ---
 
 ## Authentication
