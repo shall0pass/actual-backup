@@ -1,5 +1,5 @@
 const express = require('express');
-const { getUserId, isOidcEnabled, requireAuth } = require('../auth');
+const { getUserId, getDisplayName, isOidcEnabled, requireAuth } = require('../auth');
 const { getUserConfigById, upsertUserConfig, deleteUserConfigById } = require('../state');
 const { registerConfigSchedule, unregisterConfigSchedule } = require('../scheduler');
 const { renderDashboard } = require('../views/dashboard');
@@ -61,7 +61,7 @@ router.get('/settings/new', (req, res) => {
     return res.redirect('/auth/login');
   }
 
-  res.send(renderSettingsPage(userId, {}, { isNew: true }));
+  res.send(renderSettingsPage(getDisplayName(req), {}, { isNew: true }));
 });
 
 router.post('/settings/new', (req, res) => {
@@ -86,7 +86,7 @@ router.get('/settings/:configId', (req, res) => {
     return res.status(404).send('Configuration not found');
   }
 
-  res.send(renderSettingsPage(userId, config, { isNew: false, configId: req.params.configId }));
+  res.send(renderSettingsPage(getDisplayName(req), config, { isNew: false, configId: req.params.configId }));
 });
 
 router.post('/settings/:configId', (req, res) => {
