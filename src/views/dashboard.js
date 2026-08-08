@@ -63,7 +63,7 @@ function renderConfigCard(userId, config) {
         <a class="btn btn-secondary" href="/settings/${encodeURIComponent(config.id)}">Edit</a>
         <a class="btn btn-secondary" href="/api/configs/${encodeURIComponent(config.id)}/run">Run backup</a>
         <form method="POST" action="/settings/${encodeURIComponent(config.id)}/delete" onsubmit="return confirm('Delete this configuration? Existing backup files are kept, but the schedule will stop.');">
-          <button type="submit" class="btn btn-danger btn-block">Delete</button>
+          <button type="submit" class="btn btn-danger btn-block">Delete Backup Configuration</button>
         </form>
       </div>
       <form method="POST" action="/backups/${encodeURIComponent(config.id)}/delete" onsubmit="return confirm('Delete the selected backups? This cannot be undone.');">
@@ -75,7 +75,7 @@ function renderConfigCard(userId, config) {
             ${rows}
           </tbody>
         </table>
-        ${backups.length > 0 ? '<button type="submit" class="btn btn-danger" style="margin-top:0.75rem;">Delete selected</button>' : ''}
+        ${backups.length > 0 ? '<button type="submit" class="btn btn-danger" style="margin-top:0.75rem;">Delete selected backup files</button>' : ''}
       </form>
     </div>`;
 }
