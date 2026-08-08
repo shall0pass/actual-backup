@@ -5,10 +5,15 @@ const { runBackup } = require('./app');
 
 const scheduleRegistry = new Map();
 
-function registerUserSchedule(userId, config) {
+function scheduleKey(userId, configId) {
   const normalizedUserId = String(userId || 'default').replace(/[^a-zA-Z0-9._-]/g, '-');
-  const schedule = String(config.CRON_SCHEDULE || '').trim();
-  const taskName = `backup-job-${normalizedUserId}`;
+  const normalizedConfigId = String(configId || 'default').replace(/[^a-zA-Z0-9._-]/g, '-');
+  return `backup-job-${normalizedUserId}-${normalizedConfigId}`;
+}
+
+function registerConfigSchedule(userId, configId, config) {
+  const taskName = scheduleKey(userId, configId);
+  const schedule = String(config?.CRON_SCHEDULE || '').trim();
 
   if (scheduleRegistry.has(taskName)) {
     scheduleRegistry.get(taskName).stop();
@@ -21,9 +26,9 @@ function registerUserSchedule(userId, config) {
 
   const task = cron.schedule(schedule, async () => {
     try {
-      await runBackup({ userId, configOverride: config });
+      await runBackup({ userId, configId, configOverride: config });
     } catch (error) {
-      console.error(`${logPrefix} Scheduled backup failed for ${userId}:`, error.message);
+      console.error(`${logPrefix} Scheduled backup failed for ${userId}/${configId}:`, error.message);
     }
   });
 
@@ -31,18 +36,28 @@ function registerUserSchedule(userId, config) {
   scheduleRegistry.set(taskName, task);
 }
 
-function restoreUserSchedules() {
-  const state = readState();
-  const users = Object.keys(state.users || {});
+function unregisterConfigSchedule(userId, configId) {
+  const taskName = scheduleKey(userId, configId);
+  if (scheduleRegistry.has(taskName)) {
+    scheduleRegistry.get(taskName).stop();
+    scheduleRegistry.delete(taskName);
+  }
+}
 
-  for (const userId of users) {
-    const config = state.users[userId] || {};
-    registerUserSchedule(userId, config);
+function restoreAllSchedules() {
+  const state = readState();
+
+  for (const [userId, userRecord] of Object.entries(state.users || {})) {
+    const configs = userRecord.configs || {};
+    for (const [configId, config] of Object.entries(configs)) {
+      registerConfigSchedule(userId, configId, config);
+    }
   }
 }
 
 module.exports = {
   scheduleRegistry,
-  registerUserSchedule,
-  restoreUserSchedules,
+  registerConfigSchedule,
+  unregisterConfigSchedule,
+  restoreAllSchedules,
 };

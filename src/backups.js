@@ -2,15 +2,18 @@ const fs = require('fs');
 const path = require('path');
 const { dataRoot } = require('./config');
 
-function getUserDataDir(userId) {
+// Each configuration's backups live in their own subdirectory so that
+// multiple budgets for the same user never share (or collide over) files.
+function getUserDataDir(userId, configId) {
   const normalizedUserId = String(userId || 'anonymous').replace(/[^a-zA-Z0-9._-]/g, '-');
-  const userDataDir = path.join(dataRoot, normalizedUserId);
+  const normalizedConfigId = String(configId || 'default').replace(/[^a-zA-Z0-9._-]/g, '-');
+  const userDataDir = path.join(dataRoot, normalizedUserId, normalizedConfigId);
   fs.mkdirSync(userDataDir, { recursive: true });
   return userDataDir;
 }
 
-function getBackupList(userId) {
-  const userDataDir = getUserDataDir(userId);
+function getBackupList(userId, configId) {
+  const userDataDir = getUserDataDir(userId, configId);
   if (!fs.existsSync(userDataDir)) {
     return [];
   }
@@ -31,8 +34,8 @@ function getBackupList(userId) {
     .sort((a, b) => new Date(b.modifiedAt) - new Date(a.modifiedAt));
 }
 
-function deleteBackup(userId, name) {
-  const userDataDir = getUserDataDir(userId);
+function deleteBackup(userId, configId, name) {
+  const userDataDir = getUserDataDir(userId, configId);
   // path.basename strips any directory components, so a name like
   // "../../etc/passwd" collapses to "passwd" and can't escape the user's dir.
   const safeName = path.basename(String(name || ''));

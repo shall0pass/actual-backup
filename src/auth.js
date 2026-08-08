@@ -1,6 +1,16 @@
 const express = require('express');
+const crypto = require('crypto');
 const openidClient = require('openid-client');
-const { logPrefix, oidcConfig, oidcEnabledInitial, adminUserId } = require('./config');
+const {
+  logPrefix,
+  oidcConfig,
+  oidcEnabledInitial,
+  adminUserId,
+  isNonEmpty,
+  localAuthUsername,
+  localAuthPassword,
+  localAuthEnabled,
+} = require('./config');
 
 // Mutable at runtime: OIDC discovery can fail on boot, in which case we
 // fall back to demo mode for the rest of the process lifetime.
@@ -54,6 +64,20 @@ function resolveDisplayName(claims, fallbackUserId) {
   );
 }
 
+function isLocalAuthEnabled() {
+  return localAuthEnabled;
+}
+
+function safeCompare(a, b) {
+  const bufA = Buffer.from(String(a));
+  const bufB = Buffer.from(String(b));
+  if (bufA.length !== bufB.length) {
+    crypto.timingSafeEqual(bufA, bufA); // burn equivalent time either way
+    return false;
+  }
+  return crypto.timingSafeEqual(bufA, bufB);
+}
+
 function requireAuth(req, res, next) {
   const userId = getUserId(req);
   if (!userId || userId === 'anonymous') {
@@ -67,8 +91,7 @@ const router = express.Router();
 
 router.get('/auth/login', async (req, res) => {
   if (!oidcEnabled) {
-    req.session.userId = 'demo-user';
-    return res.redirect('/');
+    return res.status(404).send('OIDC login is not configured');
   }
 
   const codeVerifier = openidClient.randomPKCECodeVerifier();
@@ -98,10 +121,30 @@ router.get('/auth/login', async (req, res) => {
   res.redirect(authorizationUrl.href);
 });
 
+router.post('/auth/local-login', (req, res) => {
+  if (!localAuthEnabled) {
+    return res.status(404).send('Local login is not configured');
+  }
+
+  const { username, password } = req.body || {};
+  const usernameMatches = isNonEmpty(username) && safeCompare(username, localAuthUsername);
+  const passwordMatches = isNonEmpty(password) && safeCompare(password, localAuthPassword);
+
+  if (!usernameMatches || !passwordMatches) {
+    // Required lazily to avoid a circular require at module load time
+    // (views/dashboard.js requires auth.js for getUserId/isOidcEnabled/etc).
+    const { renderDashboard } = require('./views/dashboard');
+    return renderDashboard(req, res, { loginError: 'Invalid username or password' });
+  }
+
+  req.session.userId = adminUserId;
+  req.session.displayName = localAuthUsername;
+  res.redirect('/');
+});
+
 router.get('/auth/callback', async (req, res) => {
   if (!oidcEnabled) {
-    req.session.userId = 'demo-user';
-    return res.redirect('/');
+    return res.status(404).send('OIDC login is not configured');
   }
 
   try {
@@ -145,6 +188,7 @@ module.exports = {
   router,
   initializeOidc,
   isOidcEnabled,
+  isLocalAuthEnabled,
   requireAuth,
   getUserId,
   getDisplayName,

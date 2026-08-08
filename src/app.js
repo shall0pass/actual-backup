@@ -3,35 +3,28 @@ const _7z = require('7zip-min');
 const fdate = require('date-fns');
 const fs = require('fs');
 const path = require('path');
-const { version: appVersion } = require('../package.json');
+const { dataRoot, debugEnabled, logPrefix } = require('./config');
+const { getUserConfigById } = require('./state');
 
-const debugEnabled = String(process.env.DEBUG || 'false').toLowerCase() === 'true';
-const dataRoot = path.resolve(process.env.BACKUP_DATA_ROOT || './data');
 const defaultUserId = String(process.env.BACKUP_USER_ID || 'default').replace(/[^a-zA-Z0-9._-]/g, '-');
-const storeFile = path.join(dataRoot, '.actual-backup-store.json');
-const logPrefix = `[actual-backup v${appVersion}]`;
+// Standalone/cron-only usage (`node app.js`, no web UI) needs to know which
+// saved configuration to run; defaults to "default" but can be overridden.
+const defaultConfigId = String(process.env.BACKUP_CONFIG_ID || 'default').replace(/[^a-zA-Z0-9._-]/g, '-');
 
 if (debugEnabled) {
   console.log(`${logPrefix} [DEBUG] app.js booting with DEBUG=true`);
 }
 
-function loadUserConfig(userId = defaultUserId) {
-  try {
-    if (!fs.existsSync(storeFile)) {
-      return {};
-    }
-
-    const raw = JSON.parse(fs.readFileSync(storeFile, 'utf8'));
-    return raw.users?.[userId] || {};
-  } catch (error) {
-    console.warn('⚠️ Failed to read persisted settings store:', error.message);
-    return {};
-  }
+function loadUserConfig(userId = defaultUserId, configId = defaultConfigId) {
+  return getUserConfigById(userId, configId) || {};
 }
 
-function resolveScopedDir(userId = defaultUserId) {
+// Backups for a given user+configuration always live in their own
+// subdirectory, so different budgets for the same user never collide.
+function resolveScopedDir(userId = defaultUserId, configId = defaultConfigId) {
   const safeUserId = String(userId || 'default').replace(/[^a-zA-Z0-9._-]/g, '-');
-  const targetDir = path.join(dataRoot, safeUserId);
+  const safeConfigId = String(configId || 'default').replace(/[^a-zA-Z0-9._-]/g, '-');
+  const targetDir = path.join(dataRoot, safeUserId, safeConfigId);
   fs.mkdirSync(targetDir, { recursive: true });
   return targetDir;
 }
@@ -76,26 +69,34 @@ const verifyConnectivity = async (url) => {
   }
 };
 
-async function runBackup({ userId = defaultUserId, configOverride = {} } = {}) {
+async function runBackup({ userId = defaultUserId, configId = defaultConfigId, configOverride = {} } = {}) {
   const activeUserId = String(userId || 'default').replace(/[^a-zA-Z0-9._-]/g, '-');
-  const activeDataDir = resolveScopedDir(activeUserId);
-  const persistedConfig = loadUserConfig(activeUserId);
+  const activeConfigId = String(configId || 'default').replace(/[^a-zA-Z0-9._-]/g, '-');
+  const activeDataDir = resolveScopedDir(activeUserId, activeConfigId);
+  const persistedConfig = loadUserConfig(activeUserId, activeConfigId);
 
   const actual_url = configOverride.ACTUAL_SERVER_URL || persistedConfig.ACTUAL_SERVER_URL || '';
   const password = configOverride.ACTUAL_SERVER_PASSWORD || persistedConfig.ACTUAL_SERVER_PASSWORD || '';
   const sync_id = configOverride.ACTUAL_SYNC_ID || persistedConfig.ACTUAL_SYNC_ID || '';
   const ACTUAL_ENCRYPTION_PASSWORD = configOverride.ACTUAL_ENCRYPTION_PASSWORD || persistedConfig.ACTUAL_ENCRYPTION_PASSWORD || '';
 
-  const retentionKeepCount = Number(configOverride.RETENTION_KEEP_COUNT || persistedConfig.RETENTION_KEEP_COUNT || 10) || 10;
-  const retentionKeepMonthly = String(
-    configOverride.RETENTION_KEEP_MONTHLY ?? persistedConfig.RETENTION_KEEP_MONTHLY ?? 'true'
-  ) === 'true';
-  const retentionKeepYearly = String(
-    configOverride.RETENTION_KEEP_YEARLY ?? persistedConfig.RETENTION_KEEP_YEARLY ?? 'false'
-  ) === 'true';
+  const keepCountRaw = configOverride.RETENTION_KEEP_COUNT ?? persistedConfig.RETENTION_KEEP_COUNT;
+  const retentionKeepCount = Number.isFinite(Number(keepCountRaw)) && Number(keepCountRaw) > 0
+    ? Math.floor(Number(keepCountRaw))
+    : 10;
+
+  const keepMonthlyRaw = configOverride.RETENTION_KEEP_MONTHLY ?? persistedConfig.RETENTION_KEEP_MONTHLY;
+  const retentionKeepMonthly = keepMonthlyRaw === undefined || keepMonthlyRaw === ''
+    ? true
+    : (keepMonthlyRaw === true || keepMonthlyRaw === 'true' || keepMonthlyRaw === 'on');
+
+  const keepYearlyRaw = configOverride.RETENTION_KEEP_YEARLY ?? persistedConfig.RETENTION_KEEP_YEARLY;
+  const retentionKeepYearly = keepYearlyRaw === undefined || keepYearlyRaw === ''
+    ? true
+    : (keepYearlyRaw === true || keepYearlyRaw === 'true' || keepYearlyRaw === 'on');
 
   if (!actual_url || !password || !sync_id) {
-    throw new Error('Missing Actual backup configuration for this user. Save ACTUAL_SERVER_URL, ACTUAL_SERVER_PASSWORD, and ACTUAL_SYNC_ID in the web UI before running a backup.');
+    throw new Error('Missing Actual backup configuration for this budget. Save ACTUAL_SERVER_URL, ACTUAL_SERVER_PASSWORD, and ACTUAL_SYNC_ID in the web UI before running a backup.');
   }
 
   const initializeActual = async (serverURL, password, timeoutMs) => {
@@ -177,22 +178,7 @@ async function runBackup({ userId = defaultUserId, configOverride = {} } = {}) {
     }
   };
 
-  const getNextDevRunNumber = () => {
-    const existingZips = fs.readdirSync(activeDataDir)
-      .filter((name) => name.endsWith('.zip') && /-dev-\d+\.zip$/.test(name));
-
-    let maxRunNumber = 0;
-    for (const name of existingZips) {
-      const match = name.match(/-dev-(\d+)\.zip$/);
-      if (match) {
-        maxRunNumber = Math.max(maxRunNumber, Number(match[1]));
-      }
-    }
-
-    return maxRunNumber + 1;
-  };
-
-  const compressBudget = (runNumber) => {
+  const compressBudget = () => {
     const today = fdate.format(new Date(), 'yyyy-MM-dd-HH-mm');
     const budgetList = fs.readdirSync(activeDataDir);
 
@@ -207,7 +193,7 @@ async function runBackup({ userId = defaultUserId, configOverride = {} } = {}) {
         const data = fs.readFileSync(metadataPath, 'utf8');
         const obj = JSON.parse(data);
 
-        const fileName = `${obj.budgetName}-${today}-dev-${runNumber}`;
+        const fileName = `${obj.budgetName}-${today}`;
         const inPath = path.join(activeDataDir, element);
         const outPath = path.join(activeDataDir, `${fileName}.zip`);
 
@@ -281,15 +267,15 @@ async function runBackup({ userId = defaultUserId, configOverride = {} } = {}) {
     await verifyBudgetOpen();
     await actual.shutdown();
 
-    const runNumber = getNextDevRunNumber();
-    console.log(`${logPrefix} ✅ Budget sync complete. Starting compression for run ${runNumber}.`);
-    compressBudget(runNumber);
+    console.log(`${logPrefix} ✅ Budget sync complete.`);
+    compressBudget();
     applyRetentionPolicy();
 
     return {
       userId: activeUserId,
+      configId: activeConfigId,
       dataDir: activeDataDir,
-      syncId: sync_id,
+      sync_id,
       serverUrl: url,
     };
   } catch (err) {
