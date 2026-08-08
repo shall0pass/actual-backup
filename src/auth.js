@@ -50,6 +50,10 @@ function getDisplayName(req) {
   return req.session?.displayName || getUserId(req);
 }
 
+function getUserEmail(req) {
+  return req.session?.email || 'none';
+}
+
 function isAdminUser(userId) {
   return userId === adminUserId;
 }
@@ -180,6 +184,7 @@ module.exports = {
   isLocalAuthEnabled,
   requireAuth,
   getUserId,
+  getUserEmail,
   getDisplayName,
   isAdminUser,
   resolveDisplayName,
