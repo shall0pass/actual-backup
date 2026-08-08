@@ -89,7 +89,12 @@ router.get('/auth/login', async (req, res) => {
     code_challenge: codeChallenge,
     code_challenge_method: 'S256',
   });
-
+  console.log('LOGIN', {
+    sessionId: req.sessionID,
+    state,
+    nonce,
+    verifier: !!codeVerifier
+  });
   res.redirect(authorizationUrl.href);
 });
 
@@ -117,6 +122,12 @@ router.get('/auth/callback', async (req, res) => {
     req.session.oidcState = null;
     req.session.oidcNonce = null;
     req.session.oidcCodeVerifier = null;
+    console.log('CALLBACK', {
+      sessionId: req.sessionID,
+      state: req.session?.oidcState,
+      nonce: req.session?.oidcNonce,
+      verifier: !!req.session?.oidcCodeVerifier
+    });
     res.redirect('/');
   } catch (error) {
     console.error(`${logPrefix} OIDC callback error:`, error);
