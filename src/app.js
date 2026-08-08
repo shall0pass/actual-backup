@@ -169,22 +169,7 @@ async function runBackup({ userId = defaultUserId, configOverride = {} } = {}) {
     }
   };
 
-  const getNextDevRunNumber = () => {
-    const existingZips = fs.readdirSync(activeDataDir)
-      .filter((name) => name.endsWith('.zip') && /-dev-\d+\.zip$/.test(name));
-
-    let maxRunNumber = 0;
-    for (const name of existingZips) {
-      const match = name.match(/-dev-(\d+)\.zip$/);
-      if (match) {
-        maxRunNumber = Math.max(maxRunNumber, Number(match[1]));
-      }
-    }
-
-    return maxRunNumber + 1;
-  };
-
-  const compressBudget = (runNumber) => {
+  const compressBudget = () => {
     const today = fdate.format(new Date(), 'yyyy-MM-dd-HH-mm');
     const budgetList = fs.readdirSync(activeDataDir);
 
@@ -199,7 +184,7 @@ async function runBackup({ userId = defaultUserId, configOverride = {} } = {}) {
         const data = fs.readFileSync(metadataPath, 'utf8');
         const obj = JSON.parse(data);
 
-        const fileName = `${obj.budgetName}-${today}-dev-${runNumber}`;
+        const fileName = `${obj.budgetName}-${today}`;
         const inPath = path.join(activeDataDir, element);
         const outPath = path.join(activeDataDir, `${fileName}.zip`);
 
@@ -263,9 +248,8 @@ async function runBackup({ userId = defaultUserId, configOverride = {} } = {}) {
     await verifyBudgetOpen();
     await actual.shutdown();
 
-    const runNumber = getNextDevRunNumber();
-    console.log(`${logPrefix} ✅ Budget sync complete. Starting compression for run ${runNumber}.`);
-    compressBudget(runNumber);
+        console.log(`${logPrefix} ✅ Budget sync complete.`);
+    compressBudget();
     applyRetentionPolicy();
 
     return {
