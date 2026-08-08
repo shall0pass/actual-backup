@@ -3,35 +3,28 @@ const _7z = require('7zip-min');
 const fdate = require('date-fns');
 const fs = require('fs');
 const path = require('path');
-const { version: appVersion } = require('../package.json');
+const { dataRoot, debugEnabled, logPrefix } = require('./config');
+const { getUserConfigById } = require('./state');
 
-const debugEnabled = String(process.env.DEBUG || 'false').toLowerCase() === 'true';
-const dataRoot = path.resolve(process.env.BACKUP_DATA_ROOT || './data');
 const defaultUserId = String(process.env.BACKUP_USER_ID || 'default').replace(/[^a-zA-Z0-9._-]/g, '-');
-const storeFile = path.join(dataRoot, '.actual-backup-store.json');
-const logPrefix = `[actual-backup v${appVersion}]`;
+// Standalone/cron-only usage (`node app.js`, no web UI) needs to know which
+// saved configuration to run; defaults to "default" but can be overridden.
+const defaultConfigId = String(process.env.BACKUP_CONFIG_ID || 'default').replace(/[^a-zA-Z0-9._-]/g, '-');
 
 if (debugEnabled) {
   console.log(`${logPrefix} [DEBUG] app.js booting with DEBUG=true`);
 }
 
-function loadUserConfig(userId = defaultUserId) {
-  try {
-    if (!fs.existsSync(storeFile)) {
-      return {};
-    }
-
-    const raw = JSON.parse(fs.readFileSync(storeFile, 'utf8'));
-    return raw.users?.[userId] || {};
-  } catch (error) {
-    console.warn('⚠️ Failed to read persisted settings store:', error.message);
-    return {};
-  }
+function loadUserConfig(userId = defaultUserId, configId = defaultConfigId) {
+  return getUserConfigById(userId, configId) || {};
 }
 
-function resolveScopedDir(userId = defaultUserId) {
+// Backups for a given user+configuration always live in their own
+// subdirectory, so different budgets for the same user never collide.
+function resolveScopedDir(userId = defaultUserId, configId = defaultConfigId) {
   const safeUserId = String(userId || 'default').replace(/[^a-zA-Z0-9._-]/g, '-');
-  const targetDir = path.join(dataRoot, safeUserId);
+  const safeConfigId = String(configId || 'default').replace(/[^a-zA-Z0-9._-]/g, '-');
+  const targetDir = path.join(dataRoot, safeUserId, safeConfigId);
   fs.mkdirSync(targetDir, { recursive: true });
   return targetDir;
 }
@@ -76,10 +69,11 @@ const verifyConnectivity = async (url) => {
   }
 };
 
-async function runBackup({ userId = defaultUserId, configOverride = {} } = {}) {
+async function runBackup({ userId = defaultUserId, configId = defaultConfigId, configOverride = {} } = {}) {
   const activeUserId = String(userId || 'default').replace(/[^a-zA-Z0-9._-]/g, '-');
-  const activeDataDir = resolveScopedDir(activeUserId);
-  const persistedConfig = loadUserConfig(activeUserId);
+  const activeConfigId = String(configId || 'default').replace(/[^a-zA-Z0-9._-]/g, '-');
+  const activeDataDir = resolveScopedDir(activeUserId, activeConfigId);
+  const persistedConfig = loadUserConfig(activeUserId, activeConfigId);
 
   const actual_url = configOverride.ACTUAL_SERVER_URL || persistedConfig.ACTUAL_SERVER_URL || '';
   const password = configOverride.ACTUAL_SERVER_PASSWORD || persistedConfig.ACTUAL_SERVER_PASSWORD || '';
@@ -102,7 +96,7 @@ async function runBackup({ userId = defaultUserId, configOverride = {} } = {}) {
     : (keepYearlyRaw === true || keepYearlyRaw === 'true' || keepYearlyRaw === 'on');
 
   if (!actual_url || !password || !sync_id) {
-    throw new Error('Missing Actual backup configuration for this user. Save ACTUAL_SERVER_URL, ACTUAL_SERVER_PASSWORD, and ACTUAL_SYNC_ID in the web UI before running a backup.');
+    throw new Error('Missing Actual backup configuration for this budget. Save ACTUAL_SERVER_URL, ACTUAL_SERVER_PASSWORD, and ACTUAL_SYNC_ID in the web UI before running a backup.');
   }
 
   const initializeActual = async (serverURL, password, timeoutMs) => {
@@ -279,6 +273,7 @@ async function runBackup({ userId = defaultUserId, configOverride = {} } = {}) {
 
     return {
       userId: activeUserId,
+      configId: activeConfigId,
       dataDir: activeDataDir,
       sync_id,
       serverUrl: url,

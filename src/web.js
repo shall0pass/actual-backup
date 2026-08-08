@@ -5,7 +5,7 @@ const fs = require('fs');
 
 const { port, sessionStorePath, oidcConfig, logPrefix, debugEnabled } = require('./config');
 const auth = require('./auth');
-const { restoreUserSchedules } = require('./scheduler');
+const { restoreAllSchedules } = require('./scheduler');
 const pageRoutes = require('./routes/pages');
 const apiRoutes = require('./routes/api');
 
@@ -41,7 +41,7 @@ app.use(apiRoutes);
 
 async function start() {
   await auth.initializeOidc();
-  restoreUserSchedules();
+  restoreAllSchedules();
   app.listen(port, '0.0.0.0', () => {
     console.log(`${logPrefix} ✅ Web portal listening on http://0.0.0.0:${port}`);
     if (debugEnabled) {

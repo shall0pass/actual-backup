@@ -20,16 +20,20 @@ function parseCronForUI(cron) {
   return { mode: 'simple', hour: Number(hour), minute: Number(minute), days };
 }
 
-function renderSettingsPage(userId, config) {
+// options: { isNew: boolean, configId: string|null }
+function renderSettingsPage(userId, config, options = {}) {
+  const { isNew = false, configId = null } = options;
   const parsedCron = parseCronForUI(config.CRON_SCHEDULE);
   const cronTimeValue = parsedCron.mode === 'simple'
     ? `${pad2(parsedCron.hour)}:${pad2(parsedCron.minute)}`
     : '02:00';
   const retentionKeepCount = config.RETENTION_KEEP_COUNT || '10';
   // Both monthly and yearly retention default to checked unless the user
-  // has explicitly turned them off (mirrors the two-file version's default).
+  // has explicitly turned them off.
   const retentionKeepMonthly = !(config.RETENTION_KEEP_MONTHLY === false || config.RETENTION_KEEP_MONTHLY === 'false');
   const retentionKeepYearly = !(config.RETENTION_KEEP_YEARLY === false || config.RETENTION_KEEP_YEARLY === 'false');
+  const formAction = isNew ? '/settings/new' : `/settings/${encodeURIComponent(configId)}`;
+  const pageTitle = isNew ? 'Add Budget Configuration' : 'Edit Budget Configuration';
 
   return `<!doctype html>
 <html>
@@ -65,10 +69,11 @@ function renderSettingsPage(userId, config) {
     });
   </script>
   <body>
-    <h1>Backup Settings</h1>
+    <h1>${pageTitle}</h1>
     <p>Signed in as: <strong>${userId}</strong></p>
     <a class="button" href="/">Back to dashboard</a>
-    <form method="POST" action="/settings">
+    <form method="POST" action="${formAction}">
+      <label>Configuration Name<input name="BACKUP_NAME" placeholder="e.g. Personal Budget" value="${(config.BACKUP_NAME || '').replace(/"/g, '&quot;')}" required /></label>
       <label>Actual Server URL<input name="ACTUAL_SERVER_URL" value="${(config.ACTUAL_SERVER_URL || '').replace(/"/g, '&quot;')}" /></label>
       <label>Actual Server Password<input name="ACTUAL_SERVER_PASSWORD" value="${(config.ACTUAL_SERVER_PASSWORD || '').replace(/"/g, '&quot;')}" /></label>
       <label>Actual Sync ID<input name="ACTUAL_SYNC_ID" value="${(config.ACTUAL_SYNC_ID || '').replace(/"/g, '&quot;')}" /></label>
@@ -112,8 +117,12 @@ function renderSettingsPage(userId, config) {
           Always keep one backup per year
         </label>
       </div>
-      <button type="submit">Save Settings</button>
+      <button type="submit">${isNew ? 'Add Configuration' : 'Save Configuration'}</button>
     </form>
+    ${!isNew ? `
+    <form method="POST" action="/settings/${encodeURIComponent(configId)}/delete" style="margin-top:1rem;" onsubmit="return confirm('Delete this configuration? This does not delete existing backup files, but its schedule will stop.');">
+      <button type="submit" style="background:#d1242f;">Delete this configuration</button>
+    </form>` : ''}
   </body>
 </html>`;
 }
