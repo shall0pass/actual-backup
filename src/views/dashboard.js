@@ -60,21 +60,6 @@ function renderDashboard(req, res) {
     </div>
     <div class="card">
       <h2>Backups</h2>
-      <table>
-        <thead>
-          <tr><th>Name</th><th>Size</th><th>Modified</th><th>Action</th></tr>
-        </thead>
-        <tbody>
-          ${backups.length === 0
-            ? '<tr><td colspan="4">No backups found for this user yet.</td></tr>'
-            : backups
-                .map(
-                  (backup) =>
-                    `<tr><td>${backup.name}</td><td>${Math.round(backup.size / 1024)} KB</td><td>${backup.modifiedAt}</td><td><a href="/api/backups/${encodeURIComponent(backup.name)}">Download</a></td></tr>`
-                )
-                .join('')}
-        </tbody>
-      </table>
       <form method="POST" action="/backups/delete" onsubmit="return confirm('Delete the selected backups? This cannot be undone.');">
         <table>
           <thead>
