@@ -5,7 +5,7 @@ const { logPrefix } = require('../config');
 const { requireAuth, getUserId, getUserEmail } = require('../auth');
 const { getUserConfigs, getUserConfigById, upsertUserConfig, deleteUserConfigById } = require('../state');
 const { registerConfigSchedule, unregisterConfigSchedule } = require('../scheduler');
-const { getUserDataDir, getBackupList } = require('../backups');
+const { getUserDataDir, getBackupList, deleteConfigData } = require('../backups');
 const { runBackup, loadUserConfig } = require('../app');
 
 const router = express.Router();
@@ -46,13 +46,21 @@ router.post('/api/configs', requireAuth, (req, res) => {
 router.delete('/api/configs/:configId', requireAuth, (req, res) => {
   const userId = getUserId(req);
   const { configId } = req.params;
+  const config = getUserConfigById(userId, configId);
 
-  if (!getUserConfigById(userId, configId)) {
+  if (!config) {
     return res.status(404).json({ error: 'Configuration not found' });
   }
 
   deleteUserConfigById(userId, configId);
   unregisterConfigSchedule(userId, configId);
+
+  try {
+    deleteConfigData(configId, config.USER_EMAIL);
+  } catch (error) {
+    console.error(`${logPrefix} Failed to delete backup files for ${userId}/${configId}:`, error.message);
+  }
+
   res.json({ ok: true, userId, configId });
 });
 

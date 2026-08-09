@@ -95,7 +95,7 @@ function renderSettingsPage(displayName, config, options = {}) {
     </form>
 
     ${!isNew ? `
-    <form method="POST" action="/settings/${encodeURIComponent(configId)}/delete" style="margin-top:1rem;" onsubmit="return confirm('Delete this configuration? This does not delete existing backup files, but its schedule will stop.');">
+    <form method="POST" action="/settings/${encodeURIComponent(configId)}/delete" style="margin-top:1rem;" onsubmit="return confirm('Delete this configuration? This will also permanently delete all of its backup files. This cannot be undone.');">
       <button type="submit" class="btn btn-danger btn-block">Delete this configuration</button>
     </form>` : ''}
 

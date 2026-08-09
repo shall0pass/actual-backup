@@ -6,10 +6,14 @@ const { dataRoot } = require('./config');
 // email captured on the config at save time (see routes/pages.js and
 // routes/api.js) plus the config's own id, so multiple budgets - even for
 // the same login - never share or collide over files.
-function getUserDataDir(configId, userEmail) {
+function resolveDataDir(configId, userEmail) {
   const normalizedConfigId = String(configId || 'default').replace(/[^a-zA-Z0-9._-]/g, '-');
   const normalizedEmail = String(userEmail || 'unknown').replace(/[^a-zA-Z0-9._@-]/g, '-');
-  const userDataDir = path.join(dataRoot, normalizedEmail, normalizedConfigId);
+  return path.join(dataRoot, normalizedEmail, normalizedConfigId);
+}
+
+function getUserDataDir(configId, userEmail) {
+  const userDataDir = resolveDataDir(configId, userEmail);
   fs.mkdirSync(userDataDir, { recursive: true });
   return userDataDir;
 }
@@ -56,8 +60,20 @@ function deleteBackup(configId, userEmail, name) {
   return false;
 }
 
+function deleteConfigData(configId, userEmail) {
+  const userDataDir = resolveDataDir(configId, userEmail);
+
+  if (!fs.existsSync(userDataDir)) {
+    return false;
+  }
+
+  fs.rmSync(userDataDir, { recursive: true, force: true });
+  return true;
+}
+
 module.exports = {
   getUserDataDir,
   getBackupList,
   deleteBackup,
+  deleteConfigData,
 };
