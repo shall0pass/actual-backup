@@ -24,13 +24,18 @@ function registerConfigSchedule(userId, configId, config) {
     return;
   }
 
+  // CRON_SCHEDULE is always stored/interpreted as UTC (see views/settings.js
+  // for the optional local-time entry that converts to UTC before saving).
+  // Scheduling explicitly against UTC here means backups run at the
+  // intended time regardless of whether the container's system timezone
+  // (TZ / /etc/localtime) is configured correctly.
   const task = cron.schedule(schedule, async () => {
     try {
       await runBackup({ userId, configId, configOverride: config });
     } catch (error) {
       console.error(`${logPrefix} Scheduled backup failed for ${userId}/${configId}:`, error.message);
     }
-  });
+  }, { timezone: 'Etc/UTC' });
 
   task.start();
   scheduleRegistry.set(taskName, task);

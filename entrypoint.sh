@@ -48,9 +48,23 @@
 #!/bin/bash
 set -e
 
-# Set timezone only when the target file differs from the existing localtime file.
-if [ -n "$TZ" ] && [ -f "/usr/share/zoneinfo/$TZ" ] && ! cmp -s "/usr/share/zoneinfo/$TZ" "/etc/localtime"; then
-  cp "/usr/share/zoneinfo/$TZ" /etc/localtime
+# Configure the container's system timezone from $TZ: keeps /etc/localtime
+# (what glibc actually uses for local time) and /etc/timezone (the
+# human-readable name many distro tools display) in sync.
+#
+# Note: this no longer affects when backups actually run — scheduling is
+# always interpreted as UTC internally (see scheduler.js), independent of
+# this. It still matters for log timestamps and anything else in the
+# container that reads the system clock.
+if [ -n "$TZ" ]; then
+  if [ -f "/usr/share/zoneinfo/$TZ" ]; then
+    if ! cmp -s "/usr/share/zoneinfo/$TZ" "/etc/localtime"; then
+      cp "/usr/share/zoneinfo/$TZ" /etc/localtime
+    fi
+    echo "$TZ" > /etc/timezone
+  else
+    echo "entrypoint.sh: TZ='$TZ' does not match a zone under /usr/share/zoneinfo; leaving the container timezone unchanged (currently $(cat /etc/timezone 2>/dev/null || echo unknown))." >&2
+  fi
 fi
 
 # Scheduling is handled entirely inside web.js: on boot it reads every saved

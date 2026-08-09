@@ -44,6 +44,12 @@ function renderSettingsPage(displayName, config, options = {}) {
         <h2 style="margin-top:0;">Backup schedule</h2>
 
         <div id="simpleSchedule" style="${parsedCron.mode === 'advanced' ? 'display:none;' : ''}">
+          <label class="checkbox-row">
+            <input type="checkbox" id="useLocalTime" checked />
+            Enter time in my local timezone
+          </label>
+          <p class="muted" style="margin-top:0;">Converted to UTC when you save. Near daylight-saving changes, the actual run time may shift by an hour.</p>
+
           <label for="cronTime">Run at</label>
           <input type="time" id="cronTime" value="${cronTimeValue}" />
           <div class="day-grid">
@@ -58,7 +64,7 @@ function renderSettingsPage(displayName, config, options = {}) {
         </div>
 
         <div id="advancedSchedule" style="${parsedCron.mode === 'advanced' ? '' : 'display:none;'}">
-          <label for="cronRaw">Cron expression</label>
+          <label for="cronRaw">Cron expression (UTC)</label>
           <textarea id="cronRaw" placeholder="e.g. 0 2 * * *">${parsedCron.mode === 'advanced' ? escapeHtml(parsedCron.raw) : ''}</textarea>
         </div>
 
@@ -105,10 +111,76 @@ function renderSettingsPage(displayName, config, options = {}) {
         const cronRaw = document.getElementById('cronRaw');
         const dayBoxes = document.querySelectorAll('.cron-day');
         const form = document.getElementById('configForm');
+        const useLocalTime = document.getElementById('useLocalTime');
+
+        function pad2(n) {
+          return String(n).padStart(2, '0');
+        }
+
+        // Normalizes a day-of-week difference into -1, 0, or 1 (a timezone
+        // offset can push a wall-clock time into the previous/next day, but
+        // never further than that).
+        function normalizedDayShift(a, b) {
+          let diff = a - b;
+          if (diff > 1) diff -= 7;
+          if (diff < -1) diff += 7;
+          return diff;
+        }
+
+        function shiftDays(days, delta) {
+          if (!days.length) return days; // "every day" stays "every day"
+          return days.map((d) => ((d + delta) % 7 + 7) % 7);
+        }
+
+        // Converts an { hour, minute, days } wall-clock reading between the
+        // browser's local timezone and UTC. Uses today's date only to
+        // resolve the current UTC offset, so it's not aware of DST changes
+        // that happen between now and the actual scheduled run.
+        function convertClock(hour, minute, days, direction) {
+          const now = new Date();
+
+          if (direction === 'toUtc') {
+            const local = new Date(now.getFullYear(), now.getMonth(), now.getDate(), hour, minute, 0);
+            const shift = normalizedDayShift(local.getUTCDay(), local.getDay());
+            return { hour: local.getUTCHours(), minute: local.getUTCMinutes(), days: shiftDays(days, shift) };
+          }
+
+          const utcBase = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate(), hour, minute, 0));
+          const shift = normalizedDayShift(utcBase.getDay(), utcBase.getUTCDay());
+          return { hour: utcBase.getHours(), minute: utcBase.getMinutes(), days: shiftDays(days, shift) };
+        }
+
+        function readInputs() {
+          const days = Array.from(dayBoxes).filter((box) => box.checked).map((box) => Number(box.value));
+          const [hour, minute] = (cronTime.value || '02:00').split(':').map(Number);
+          return { hour, minute, days };
+        }
+
+        function writeInputs({ hour, minute, days }) {
+          cronTime.value = pad2(hour) + ':' + pad2(minute);
+          dayBoxes.forEach((box) => {
+            box.checked = days.includes(Number(box.value));
+          });
+        }
 
         advancedToggle.addEventListener('change', () => {
           simpleSchedule.style.display = advancedToggle.checked ? 'none' : '';
           advancedSchedule.style.display = advancedToggle.checked ? '' : 'none';
+        });
+
+        // The time/day inputs are always rendered from the saved (UTC)
+        // schedule. If "use local timezone" starts checked, convert the
+        // displayed values to local time once, up front, so what the user
+        // sees matches what they'll be editing.
+        if (useLocalTime.checked) {
+          const initial = readInputs();
+          writeInputs(convertClock(initial.hour, initial.minute, initial.days, 'toLocal'));
+        }
+
+        useLocalTime.addEventListener('change', () => {
+          const current = readInputs();
+          const direction = useLocalTime.checked ? 'toLocal' : 'toUtc';
+          writeInputs(convertClock(current.hour, current.minute, current.days, direction));
         });
 
         form.addEventListener('submit', () => {
@@ -117,10 +189,13 @@ function renderSettingsPage(displayName, config, options = {}) {
             return;
           }
 
-          const [hour, minute] = (cronTime.value || '02:00').split(':');
-          const days = Array.from(dayBoxes).filter((box) => box.checked).map((box) => box.value);
+          let { hour, minute, days } = readInputs();
+          if (useLocalTime.checked) {
+            ({ hour, minute, days } = convertClock(hour, minute, days, 'toUtc'));
+          }
+
           const dayField = days.length ? days.join(',') : '*';
-          cronHidden.value = Number(minute) + ' ' + Number(hour) + ' * * ' + dayField;
+          cronHidden.value = minute + ' ' + hour + ' * * ' + dayField;
         });
       })();
     </script>

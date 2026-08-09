@@ -1,31 +1,28 @@
 const { getBackupList } = require('../backups');
 const { getUserConfigs } = require('../state');
-const { getUserId, getUserEmail, getDisplayName, isAdminUser, isOidcEnabled, isLocalAuthEnabled } = require('../auth');
+const { getUserId, getDisplayName, isAdminUser, isOidcEnabled, isLocalAuthEnabled } = require('../auth');
 const { escapeHtml } = require('./html');
 const { renderPage } = require('./layout');
 const { describeSchedule } = require('./cron');
 
 function formatServerTime() {
-  try {
-    return new Intl.DateTimeFormat(undefined, {
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit',
-      timeZoneName: 'short',
-      timeZone: process.env.TZ || undefined,
-    }).format(new Date());
-  } catch (error) {
-    // Falls back to the runtime's default timezone if TZ is set to
-    // something Intl doesn't recognize.
-    return new Date().toLocaleTimeString();
-  }
+  // Backups are scheduled strictly in UTC (see scheduler.js), independent of
+  // the container's TZ/system timezone setup. Showing UTC here — rather than
+  // whatever TZ happens to resolve to — keeps this clock trustworthy even if
+  // the container's timezone files aren't configured correctly.
+  return new Intl.DateTimeFormat(undefined, {
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    timeZone: 'UTC',
+  }).format(new Date());
 }
 
 function renderHeader() {
   return `
     <div class="page-header">
       <h1>Actual Backup Portal</h1>
-      <span class="page-header-clock mono">Server time: ${escapeHtml(formatServerTime())}</span>
+      <span class="page-header-clock mono">Server time: ${escapeHtml(formatServerTime())} UTC</span>
     </div>`;
 }
 
@@ -93,6 +90,9 @@ function renderConfigCard(userId, config) {
         <form method="POST" action="/configs/${encodeURIComponent(config.id)}/run">
           <button type="submit" class="btn btn-secondary btn-block">Run backup</button>
         </form>
+        <form method="POST" action="/settings/${encodeURIComponent(config.id)}/delete" onsubmit="return confirm('Delete this configuration? Existing backup files are kept, but the schedule will stop.');">
+          <button type="submit" class="btn btn-danger btn-block">Delete</button>
+        </form>
       </div>
       <form method="POST" action="/backups/${encodeURIComponent(config.id)}/delete" onsubmit="return confirm('Delete the selected backups? This cannot be undone.');">
         <table class="backup-table" id="${tableId}">
@@ -106,7 +106,7 @@ function renderConfigCard(userId, config) {
         ${hasMoreBackups
           ? `<button type="button" class="btn btn-secondary btn-toggle-backups" data-target="${tableId}" data-show-label="Show all ${backups.length} backups" style="margin-top:0.75rem;">Show all ${backups.length} backups</button>`
           : ''}
-        ${backups.length > 0 ? '<button type="submit" class="btn btn-danger" style="margin-top:0.75rem;">Delete selected backup files</button>' : ''}
+        ${backups.length > 0 ? '<button type="submit" class="btn btn-danger" style="margin-top:0.75rem;">Delete selected</button>' : ''}
       </form>
     </div>`;
 }
@@ -164,14 +164,13 @@ function renderDashboard(req, res, options = {}) {
       bodyHtml: renderLoggedOutBody(options.loginError || ''),
     }));
   }
-  
+
   const configs = getUserConfigs(userId);
 
   const body = `
     ${renderHeader()}
     <div class="card">
       <p><strong>Signed in as</strong> ${escapeHtml(getDisplayName(req))}</p>
-      <p><strong>Email : </strong> ${escapeHtml(getUserEmail(req))}</p>
       <p class="muted">${isOidcEnabled() ? 'OIDC login enabled' : 'Demo fallback mode'} &middot; ${isAdminUser(userId) ? 'Admin' : 'Standard user'}</p>
       <div class="actions" style="margin-top:0.75rem;">
         <a class="btn btn-primary" href="/settings/new">+ Add budget configuration</a>

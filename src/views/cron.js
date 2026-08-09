@@ -30,12 +30,12 @@ function describeSchedule(cronExpr) {
 
   const parsed = parseCronForUI(trimmed);
   if (parsed.mode === 'advanced') {
-    return `Custom schedule (${parsed.raw})`;
+    return `Custom schedule (${parsed.raw}, UTC)`;
   }
 
   const hour12 = parsed.hour % 12 || 12;
   const meridiem = parsed.hour < 12 ? 'AM' : 'PM';
-  const time = `${hour12}:${pad2(parsed.minute)} ${meridiem}`;
+  const time = `${hour12}:${pad2(parsed.minute)} ${meridiem} UTC`;
 
   if (!parsed.days.length) {
     return `Runs daily at ${time}`;
