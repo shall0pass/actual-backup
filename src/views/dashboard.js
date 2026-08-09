@@ -1,6 +1,6 @@
 const { getBackupList } = require('../backups');
 const { getUserConfigs } = require('../state');
-const { getUserId, getDisplayName, isAdminUser, isOidcEnabled, isLocalAuthEnabled } = require('../auth');
+const { getUserId, getDisplayName, getUserEmail, isAdminUser, isOidcEnabled, isLocalAuthEnabled } = require('../auth');
 const { escapeHtml } = require('./html');
 const { renderPage } = require('./layout');
 const { describeSchedule } = require('./cron');
@@ -171,6 +171,7 @@ function renderDashboard(req, res, options = {}) {
     ${renderHeader()}
     <div class="card">
       <p><strong>Signed in as</strong> ${escapeHtml(getDisplayName(req))}</p>
+      <p><strong>Email: </strong> ${escapeHtml(getUserEmail(req))}</p>
       <p class="muted">${isOidcEnabled() ? 'OIDC login enabled' : 'Demo fallback mode'} &middot; ${isAdminUser(userId) ? 'Admin' : 'Standard user'}</p>
       <div class="actions" style="margin-top:0.75rem;">
         <a class="btn btn-primary" href="/settings/new">+ Add budget configuration</a>
