@@ -5,7 +5,7 @@ const { getUserConfigById, upsertUserConfig, deleteUserConfigById } = require('.
 const { registerConfigSchedule, unregisterConfigSchedule } = require('../scheduler');
 const { renderDashboard } = require('../views/dashboard');
 const { renderSettingsPage } = require('../views/settings');
-const { deleteBackup } = require('../backups');
+const { deleteBackup, deleteConfigData } = require('../backups');
 const { runBackup } = require('../app');
 
 const router = express.Router();
@@ -139,12 +139,20 @@ router.post('/settings/:configId/delete', (req, res) => {
   }
 
   const { configId } = req.params;
-  if (!getUserConfigById(userId, configId)) {
+  const config = getUserConfigById(userId, configId);
+  if (!config) {
     return res.status(404).send('Configuration not found');
   }
 
   deleteUserConfigById(userId, configId);
   unregisterConfigSchedule(userId, configId);
+
+  try {
+    deleteConfigData(configId, config.USER_EMAIL);
+  } catch (error) {
+    console.error(`${logPrefix} Failed to delete backup files for ${userId}/${configId}:`, error.message);
+  }
+
   res.redirect('/');
 });
 
