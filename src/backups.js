@@ -7,12 +7,13 @@ const { dataRoot } = require('./config');
 function getUserDataDir(userId, configId, userEmail) {
   const normalizedUserId = String(userId || 'anonymous').replace(/[^a-zA-Z0-9._-]/g, '-');
   const normalizedConfigId = String(configId || 'default').replace(/[^a-zA-Z0-9._-]/g, '-');
-  const userDataDir = path.join(dataRoot, normalizedUserId, normalizedConfigId);
+  const normalizedEmail = String(userEmail || 'unknown').replace(/[^a-zA-Z0-9._@-]/g, '-');
+  const userDataDir = path.join(dataRoot, normalizedEmail, normalizedConfigId);
   fs.mkdirSync(userDataDir, { recursive: true });
   return userDataDir;
 }
 
-function getBackupList(userId, configId) {
+function getBackupList(userId, configId, userEmail) {
   const userDataDir = getUserDataDir(userId, configId, userEmail);
   if (!fs.existsSync(userDataDir)) {
     return [];
@@ -34,7 +35,7 @@ function getBackupList(userId, configId) {
     .sort((a, b) => new Date(b.modifiedAt) - new Date(a.modifiedAt));
 }
 
-function deleteBackup(userId, configId, name) {
+function deleteBackup(userId, configId, userEmail, name) {
   const userDataDir = getUserDataDir(userId, configId, userEmail);
   // path.basename strips any directory components, so a name like
   // "../../etc/passwd" collapses to "passwd" and can't escape the user's dir.
