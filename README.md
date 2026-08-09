@@ -1,3 +1,5 @@
+***Breaking Change*** -- As of 26.8.1, a new web ui interface has been added with OIDC support. Follow the instructions below to set up the docker image correctly.
+
 # actual-backup
 
 A self-hosted backup tool for [Actual Budget](https://actualbudget.org/), with a mobile-friendly web UI.
