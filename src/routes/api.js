@@ -71,13 +71,14 @@ router.get('/api/configs/:configId/run', requireAuth, async (req, res) => {
 
 router.get('/api/configs/:configId/backups', requireAuth, (req, res) => {
   const userId = getUserId(req);
+  const userEmail = getUserEmail(req);
   const { configId } = req.params;
 
   if (!getUserConfigById(userId, configId)) {
     return res.status(404).json({ error: 'Configuration not found' });
   }
 
-  res.json({ userId, configId, backups: getBackupList(userId, configId) });
+  res.json({ userId, configId, backups: getBackupList(userId, configId, userEmail) });
 });
 
 router.get('/api/configs/:configId/backups/:name', requireAuth, (req, res) => {
