@@ -161,6 +161,7 @@ router.get('/auth/callback', async (req, res) => {
     const claims = tokenSet.claims();
     req.session.userId = claims.sub || claims.email || 'oidc-user';
     req.session.displayName = resolveDisplayName(claims, req.session.userId);
+    req.session.email = claims.email || null;
     req.session.oidcState = null;
     req.session.oidcNonce = null;
     req.session.oidcCodeVerifier = null;
