@@ -3,8 +3,9 @@ const _7z = require('7zip-min');
 const fdate = require('date-fns');
 const fs = require('fs');
 const path = require('path');
-const { dataRoot, debugEnabled, logPrefix } = require('./config');
+const { debugEnabled, logPrefix } = require('./config');
 const { getUserConfigById } = require('./state');
+const { getUserDataDir } = require('./backups');
 
 const defaultUserId = String(process.env.BACKUP_USER_ID || 'default').replace(/[^a-zA-Z0-9._-]/g, '-');
 // Standalone/cron-only usage (`node app.js`, no web UI) needs to know which
@@ -17,16 +18,6 @@ if (debugEnabled) {
 
 function loadUserConfig(userId = defaultUserId, configId = defaultConfigId) {
   return getUserConfigById(userId, configId) || {};
-}
-
-// Backups for a given user+configuration always live in their own
-// subdirectory, so different budgets for the same user never collide.
-function resolveScopedDir(userId = defaultUserId, configId = defaultConfigId) {
-  const safeUserId = String(userId || 'default').replace(/[^a-zA-Z0-9._-]/g, '-');
-  const safeConfigId = String(configId || 'default').replace(/[^a-zA-Z0-9._-]/g, '-');
-  const targetDir = path.join(dataRoot, safeUserId, safeConfigId);
-  fs.mkdirSync(targetDir, { recursive: true });
-  return targetDir;
 }
 
 const validateUrl = (url) => {
@@ -69,11 +60,21 @@ const verifyConnectivity = async (url) => {
   }
 };
 
-async function runBackup({ userId = defaultUserId, configId = defaultConfigId, configOverride = {} } = {}) {
+async function runBackup({ userId = defaultUserId, userEmail, configId = defaultConfigId, configOverride = {} } = {}) {
   const activeUserId = String(userId || 'default').replace(/[^a-zA-Z0-9._-]/g, '-');
   const activeConfigId = String(configId || 'default').replace(/[^a-zA-Z0-9._-]/g, '-');
-  const activeDataDir = resolveScopedDir(activeUserId, activeConfigId);
   const persistedConfig = loadUserConfig(activeUserId, activeConfigId);
+  // Email is captured onto the config record when it's saved (see
+  // routes/pages.js and routes/api.js), because a scheduled run has no live
+  // login session to pull it from. An explicit userEmail/configOverride
+  // value can still override it (e.g. a one-off run with fresh settings),
+  // but the persisted config is the reliable source of truth so scheduled
+  // and manually-triggered runs of the same config always agree on where
+  // backups land.
+  const activeUserEmail = String(
+    userEmail || configOverride.USER_EMAIL || persistedConfig.USER_EMAIL || 'unknown'
+  ).replace(/[^a-zA-Z0-9._@-]/g, '-');
+  const activeDataDir = getUserDataDir(activeConfigId, activeUserEmail);
 
   const actual_url = configOverride.ACTUAL_SERVER_URL || persistedConfig.ACTUAL_SERVER_URL || '';
   const password = configOverride.ACTUAL_SERVER_PASSWORD || persistedConfig.ACTUAL_SERVER_PASSWORD || '';
@@ -298,7 +299,6 @@ async function main() {
 
 module.exports = {
   runBackup,
-  resolveScopedDir,
   loadUserConfig,
 };
 

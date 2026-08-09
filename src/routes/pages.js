@@ -1,6 +1,6 @@
 const express = require('express');
 const { logPrefix } = require('../config');
-const { getUserId, getDisplayName, isOidcEnabled, requireAuth } = require('../auth');
+const { getUserId, getUserEmail, getDisplayName, isOidcEnabled, requireAuth } = require('../auth');
 const { getUserConfigById, upsertUserConfig, deleteUserConfigById } = require('../state');
 const { registerConfigSchedule, unregisterConfigSchedule } = require('../scheduler');
 const { renderDashboard } = require('../views/dashboard');
@@ -31,8 +31,9 @@ router.get('/', (req, res) => {
 router.post('/backups/:configId/delete', requireAuth, (req, res) => {
   const userId = getUserId(req);
   const { configId } = req.params;
+  const config = getUserConfigById(userId, configId);
 
-  if (!getUserConfigById(userId, configId)) {
+  if (!config) {
     return res.status(404).send('Configuration not found');
   }
 
@@ -41,7 +42,7 @@ router.post('/backups/:configId/delete', requireAuth, (req, res) => {
 
   let deletedCount = 0;
   for (const name of names) {
-    if (deleteBackup(userId, configId, name)) {
+    if (deleteBackup(configId, config.USER_EMAIL, name)) {
       deletedCount++;
     }
   }
@@ -92,7 +93,9 @@ router.post('/settings/new', (req, res) => {
     return res.redirect('/auth/login');
   }
 
-  const saved = upsertUserConfig(userId, null, buildConfigPayload(req.body));
+  const payload = buildConfigPayload(req.body);
+  payload.USER_EMAIL = getUserEmail(req);
+  const saved = upsertUserConfig(userId, null, payload);
   registerConfigSchedule(userId, saved.id, saved);
   res.redirect('/');
 });
@@ -122,7 +125,9 @@ router.post('/settings/:configId', (req, res) => {
     return res.status(404).send('Configuration not found');
   }
 
-  const saved = upsertUserConfig(userId, configId, buildConfigPayload(req.body));
+  const payload = buildConfigPayload(req.body);
+  payload.USER_EMAIL = getUserEmail(req);
+  const saved = upsertUserConfig(userId, configId, payload);
   registerConfigSchedule(userId, saved.id, saved);
   res.redirect('/');
 });

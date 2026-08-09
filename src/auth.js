@@ -138,6 +138,7 @@ router.post('/auth/local-login', (req, res) => {
 
   req.session.userId = adminUserId;
   req.session.displayName = localAuthUsername;
+  req.session.email = localAuthUsername;
   res.redirect('/');
 });
 

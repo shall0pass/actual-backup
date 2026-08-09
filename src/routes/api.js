@@ -27,13 +27,18 @@ router.get('/api/configs/:configId', requireAuth, (req, res) => {
 });
 
 // Creates a new configuration when body.id is omitted (or doesn't belong to
-// this user); updates the existing one otherwise.
+// this user); updates the existing one otherwise. USER_EMAIL is always taken
+// from the authenticated session, never from the request body - a scheduled
+// run has no session to fall back on, so this is the one place it's
+// captured, and callers shouldn't be able to point their backups at an
+// arbitrary directory by supplying their own USER_EMAIL.
 router.post('/api/configs', requireAuth, (req, res) => {
   const userId = getUserId(req);
   const body = req.body || {};
   const targetId = body.id && getUserConfigById(userId, body.id) ? body.id : null;
+  const payload = { ...body, USER_EMAIL: getUserEmail(req) };
 
-  const saved = upsertUserConfig(userId, targetId, body);
+  const saved = upsertUserConfig(userId, targetId, payload);
   registerConfigSchedule(userId, saved.id, saved);
   res.json({ userId, config: saved });
 });
@@ -54,13 +59,16 @@ router.delete('/api/configs/:configId', requireAuth, (req, res) => {
 router.get('/api/configs/:configId/run', requireAuth, async (req, res) => {
   const userId = getUserId(req);
   const { configId } = req.params;
+  const config = loadUserConfig(userId, configId);
 
   if (!getUserConfigById(userId, configId)) {
     return res.status(404).json({ error: 'Configuration not found' });
   }
 
   try {
-    const config = loadUserConfig(userId, configId);
+    // runBackup reads USER_EMAIL from the persisted config itself, so the
+    // backup directory matches whatever a scheduled run of this same
+    // configuration would use.
     const result = await runBackup({ userId, configId, configOverride: config });
     res.json({ ok: true, userId, configId, result });
   } catch (error) {
@@ -71,26 +79,26 @@ router.get('/api/configs/:configId/run', requireAuth, async (req, res) => {
 
 router.get('/api/configs/:configId/backups', requireAuth, (req, res) => {
   const userId = getUserId(req);
-  const userEmail = getUserEmail(req);
   const { configId } = req.params;
+  const config = getUserConfigById(userId, configId);
 
-  if (!getUserConfigById(userId, configId)) {
+  if (!config) {
     return res.status(404).json({ error: 'Configuration not found' });
   }
 
-  res.json({ userId, configId, backups: getBackupList(userId, configId, userEmail) });
+  res.json({ userId, configId, backups: getBackupList(configId, config.USER_EMAIL) });
 });
 
 router.get('/api/configs/:configId/backups/:name', requireAuth, (req, res) => {
   const userId = getUserId(req);
-  const userEmail = getUserEmail(req);
   const { configId } = req.params;
+  const config = getUserConfigById(userId, configId);
 
-  if (!getUserConfigById(userId, configId)) {
+  if (!config) {
     return res.status(404).json({ error: 'Configuration not found' });
   }
 
-  const backupPath = path.join(getUserDataDir(userId, configId, userEmail), req.params.name);
+  const backupPath = path.join(getUserDataDir(configId, config.USER_EMAIL), req.params.name);
 
   if (!fs.existsSync(backupPath)) {
     return res.status(404).json({ error: 'Backup not found' });

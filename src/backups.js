@@ -2,10 +2,11 @@ const fs = require('fs');
 const path = require('path');
 const { dataRoot } = require('./config');
 
-// Each configuration's backups live in their own subdirectory so that
-// multiple budgets for the same user never share (or collide over) files.
-function getUserDataDir(userId, configId, userEmail) {
-  const normalizedUserId = String(userId || 'anonymous').replace(/[^a-zA-Z0-9._-]/g, '-');
+// Each configuration's backups live in their own subdirectory, keyed by the
+// email captured on the config at save time (see routes/pages.js and
+// routes/api.js) plus the config's own id, so multiple budgets - even for
+// the same login - never share or collide over files.
+function getUserDataDir(configId, userEmail) {
   const normalizedConfigId = String(configId || 'default').replace(/[^a-zA-Z0-9._-]/g, '-');
   const normalizedEmail = String(userEmail || 'unknown').replace(/[^a-zA-Z0-9._@-]/g, '-');
   const userDataDir = path.join(dataRoot, normalizedEmail, normalizedConfigId);
@@ -13,8 +14,8 @@ function getUserDataDir(userId, configId, userEmail) {
   return userDataDir;
 }
 
-function getBackupList(userId, configId, userEmail) {
-  const userDataDir = getUserDataDir(userId, configId, userEmail);
+function getBackupList(configId, userEmail) {
+  const userDataDir = getUserDataDir(configId, userEmail);
   if (!fs.existsSync(userDataDir)) {
     return [];
   }
@@ -35,8 +36,8 @@ function getBackupList(userId, configId, userEmail) {
     .sort((a, b) => new Date(b.modifiedAt) - new Date(a.modifiedAt));
 }
 
-function deleteBackup(userId, configId, userEmail, name) {
-  const userDataDir = getUserDataDir(userId, configId, userEmail);
+function deleteBackup(configId, userEmail, name) {
+  const userDataDir = getUserDataDir(configId, userEmail);
   // path.basename strips any directory components, so a name like
   // "../../etc/passwd" collapses to "passwd" and can't escape the user's dir.
   const safeName = path.basename(String(name || ''));

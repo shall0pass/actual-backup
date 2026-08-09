@@ -51,8 +51,8 @@ function renderLoggedOutBody(loginError) {
 
 const VISIBLE_BACKUP_COUNT = 4;
 
-function renderConfigCard(userId, config, userEmail) {
-  const backups = getBackupList(userId, config.id, userEmail);
+function renderConfigCard(config) {
+  const backups = getBackupList(config.id, config.USER_EMAIL);
   const label = escapeHtml(config.BACKUP_NAME || 'Untitled budget');
   const syncId = config.ACTUAL_SYNC_ID ? escapeHtml(config.ACTUAL_SYNC_ID) : 'Not set';
   const scheduleText = describeSchedule(config.CRON_SCHEDULE);
@@ -157,7 +157,6 @@ function renderStatusBanner(req) {
 
 function renderDashboard(req, res, options = {}) {
   const userId = getUserId(req);
-  const userEmail = getUserEmail(req);
 
   if (!userId || userId === 'anonymous') {
     return res.send(renderPage({
@@ -183,7 +182,7 @@ function renderDashboard(req, res, options = {}) {
     <h2>Budget backups</h2>
     ${configs.length === 0
       ? '<div class="card"><div class="empty-state"><p>No budget configurations yet.</p><p>Add one to start backing up an Actual budget.</p></div></div>'
-      : configs.map((config) => renderConfigCard(userId, config, userEmail)).join('')}
+      : configs.map((config) => renderConfigCard(config)).join('')}
     ${configs.length > 0 ? renderBackupsToggleScript() : ''}
   `;
 
