@@ -2,7 +2,7 @@ const express = require('express');
 const fs = require('fs');
 const path = require('path');
 const { logPrefix } = require('../config');
-const { requireAuth, getUserId } = require('../auth');
+const { requireAuth, getUserId, getUserEmail } = require('../auth');
 const { getUserConfigs, getUserConfigById, upsertUserConfig, deleteUserConfigById } = require('../state');
 const { registerConfigSchedule, unregisterConfigSchedule } = require('../scheduler');
 const { getUserDataDir, getBackupList } = require('../backups');
@@ -82,13 +82,14 @@ router.get('/api/configs/:configId/backups', requireAuth, (req, res) => {
 
 router.get('/api/configs/:configId/backups/:name', requireAuth, (req, res) => {
   const userId = getUserId(req);
+  const userEmail = getUserEmail(req);
   const { configId } = req.params;
 
   if (!getUserConfigById(userId, configId)) {
     return res.status(404).json({ error: 'Configuration not found' });
   }
 
-  const backupPath = path.join(getUserDataDir(userId, configId), req.params.name);
+  const backupPath = path.join(getUserDataDir(userId, configId, userEmail), req.params.name);
 
   if (!fs.existsSync(backupPath)) {
     return res.status(404).json({ error: 'Backup not found' });

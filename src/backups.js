@@ -4,7 +4,7 @@ const { dataRoot } = require('./config');
 
 // Each configuration's backups live in their own subdirectory so that
 // multiple budgets for the same user never share (or collide over) files.
-function getUserDataDir(userId, configId) {
+function getUserDataDir(userId, configId, userEmail) {
   const normalizedUserId = String(userId || 'anonymous').replace(/[^a-zA-Z0-9._-]/g, '-');
   const normalizedConfigId = String(configId || 'default').replace(/[^a-zA-Z0-9._-]/g, '-');
   const userDataDir = path.join(dataRoot, normalizedUserId, normalizedConfigId);
@@ -13,7 +13,7 @@ function getUserDataDir(userId, configId) {
 }
 
 function getBackupList(userId, configId) {
-  const userDataDir = getUserDataDir(userId, configId);
+  const userDataDir = getUserDataDir(userId, configId, userEmail);
   if (!fs.existsSync(userDataDir)) {
     return [];
   }
@@ -35,7 +35,7 @@ function getBackupList(userId, configId) {
 }
 
 function deleteBackup(userId, configId, name) {
-  const userDataDir = getUserDataDir(userId, configId);
+  const userDataDir = getUserDataDir(userId, configId, userEmail);
   // path.basename strips any directory components, so a name like
   // "../../etc/passwd" collapses to "passwd" and can't escape the user's dir.
   const safeName = path.basename(String(name || ''));
