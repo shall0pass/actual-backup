@@ -3,7 +3,7 @@ const session = require('express-session');
 const FileStore = require('session-file-store')(session);
 const fs = require('fs');
 
-const { port, sessionStorePath, oidcConfig, logPrefix, debugEnabled } = require('./config');
+const { port, sessionStorePath, oidcConfig, logPrefix, debugEnabled, getOrCreateSessionSecret } = require('./config');
 const auth = require('./auth');
 const { restoreAllSchedules } = require('./scheduler');
 const pageRoutes = require('./routes/pages');
@@ -21,7 +21,7 @@ app.use(
       logFn: () => {},
       ttl: 60 * 60 * 4,
     }),
-    secret: process.env.SESSION_SECRET || 'actual-backup-dev-session',
+    secret: getOrCreateSessionSecret(),
     resave: false,
     saveUninitialized: false,
     cookie: {

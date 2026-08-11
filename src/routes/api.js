@@ -5,7 +5,7 @@ const { logPrefix } = require('../config');
 const { requireAuth, getUserId, getUserEmail } = require('../auth');
 const { getUserConfigs, getUserConfigById, upsertUserConfig, deleteUserConfigById } = require('../state');
 const { registerConfigSchedule, unregisterConfigSchedule } = require('../scheduler');
-const { getUserDataDir, getBackupList, deleteConfigData } = require('../backups');
+const { getUserDataDir, getBackupList, deleteConfigData, sanitizeBackupName } = require('../backups');
 const { runBackup, loadUserConfig } = require('../app');
 
 const router = express.Router();
@@ -106,7 +106,12 @@ router.get('/api/configs/:configId/backups/:name', requireAuth, (req, res) => {
     return res.status(404).json({ error: 'Configuration not found' });
   }
 
-  const backupPath = path.join(getUserDataDir(configId, config.USER_EMAIL), req.params.name);
+  const safeName = sanitizeBackupName(req.params.name);
+  if (!safeName) {
+    return res.status(400).json({ error: 'Invalid backup name' });
+  }
+
+  const backupPath = path.join(getUserDataDir(configId, config.USER_EMAIL), safeName);
 
   if (!fs.existsSync(backupPath)) {
     return res.status(404).json({ error: 'Backup not found' });

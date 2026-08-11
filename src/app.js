@@ -36,6 +36,10 @@ const validateUrl = (url) => {
   }
 };
 
+// Deliberately reports one generic failure message regardless of *why* the
+// request failed (DNS, refused, timeout, bad status). ACTUAL_SERVER_URL is
+// end-user-supplied, and per-reason errors would let it be used as a probe
+// to fingerprint hosts/ports on networks the caller couldn't otherwise reach.
 const verifyConnectivity = async (url) => {
   try {
     const response = await fetch(url, {
@@ -44,19 +48,10 @@ const verifyConnectivity = async (url) => {
     });
 
     if (response.status < 200 || response.status >= 400) {
-      throw new Error(`Server returned HTTP ${response.status}`);
+      throw new Error('unreachable');
     }
   } catch (err) {
-    if (err.name === 'AbortError' || err.name === 'TimeoutError') {
-      throw new Error('Connection timed out - check if server is accessible');
-    }
-    if (err.cause?.code === 'ENOTFOUND') {
-      throw new Error('Cannot resolve hostname - check if ACTUAL_URL is correct');
-    }
-    if (err.cause?.code === 'ECONNREFUSED') {
-      throw new Error('Connection refused - check if server is running');
-    }
-    throw new Error(`Network error: ${err.message}`);
+    throw new Error('Could not reach the Actual server - check ACTUAL_SERVER_URL and that the server is running and accessible');
   }
 };
 
