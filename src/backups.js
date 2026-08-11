@@ -40,11 +40,20 @@ function getBackupList(configId, userEmail) {
     .sort((a, b) => new Date(b.modifiedAt) - new Date(a.modifiedAt));
 }
 
+// path.basename strips any directory components, so a name like
+// "../../etc/passwd" collapses to "passwd" and can't escape the user's dir.
+// Returns null if the input isn't already a bare filename (i.e. it contained
+// path separators / traversal segments), so callers can reject it outright
+// instead of silently rewriting it to something else.
+function sanitizeBackupName(name) {
+  const raw = String(name || '');
+  const safeName = path.basename(raw);
+  return safeName && safeName === raw ? safeName : null;
+}
+
 function deleteBackup(configId, userEmail, name) {
   const userDataDir = getUserDataDir(configId, userEmail);
-  // path.basename strips any directory components, so a name like
-  // "../../etc/passwd" collapses to "passwd" and can't escape the user's dir.
-  const safeName = path.basename(String(name || ''));
+  const safeName = sanitizeBackupName(name) || '';
 
   if (!safeName.endsWith('.zip')) {
     return false;
@@ -76,4 +85,5 @@ module.exports = {
   getBackupList,
   deleteBackup,
   deleteConfigData,
+  sanitizeBackupName,
 };

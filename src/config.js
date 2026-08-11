@@ -1,5 +1,6 @@
 const path = require('path');
 const fs = require('fs');
+const crypto = require('crypto');
 const { version: appVersion } = require('../package.json');
 
 const debugEnabled = String(process.env.DEBUG || 'false').toLowerCase() === 'true';
@@ -75,6 +76,39 @@ const localAuthUsername = readSecret('ADMIN_USERNAME', 'ADMIN_USERNAME_FILE', '/
 const localAuthPassword = readSecret('ADMIN_PASSWORD', 'ADMIN_PASSWORD_FILE', '/run/secrets/admin_password');
 const localAuthEnabled = isNonEmpty(localAuthUsername) && isNonEmpty(localAuthPassword);
 
+const sessionSecretFile = path.join(dataRoot, '.session-secret');
+
+// Falling back to a fixed literal here would mean anyone who's seen this
+// source (or the default docker-compose.yml) knows the value used to sign
+// session cookies. Instead, when SESSION_SECRET isn't provided, generate a
+// random one on first boot and persist it so sessions survive restarts.
+function getOrCreateSessionSecret() {
+  if (isNonEmpty(process.env.SESSION_SECRET)) {
+    return process.env.SESSION_SECRET.trim();
+  }
+
+  try {
+    if (fs.existsSync(sessionSecretFile)) {
+      const existing = fs.readFileSync(sessionSecretFile, 'utf8').trim();
+      if (isNonEmpty(existing)) {
+        return existing;
+      }
+    }
+  } catch (error) {
+    console.warn(`${logPrefix} Failed to read session secret file ${sessionSecretFile}:`, error.message);
+  }
+
+  const generated = crypto.randomBytes(32).toString('hex');
+  try {
+    fs.mkdirSync(dataRoot, { recursive: true });
+    fs.writeFileSync(sessionSecretFile, generated, { mode: 0o600 });
+  } catch (error) {
+    console.warn(`${logPrefix} Failed to persist generated session secret to ${sessionSecretFile}:`, error.message);
+  }
+
+  return generated;
+}
+
 module.exports = {
   appVersion,
   debugEnabled,
@@ -90,4 +124,5 @@ module.exports = {
   localAuthUsername,
   localAuthPassword,
   localAuthEnabled,
+  getOrCreateSessionSecret,
 };
