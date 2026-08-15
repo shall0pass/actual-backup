@@ -12,27 +12,34 @@ const {
   localAuthEnabled,
 } = require('./config');
 
-// Mutable at runtime: OIDC discovery can fail on boot, in which case we
-// fall back to demo mode for the rest of the process lifetime.
+// Mutable at runtime: OIDC discovery can fail on boot (or later, once we
+// start rechecking below), in which case we fall back to demo mode until
+// a recheck succeeds.
 let oidcEnabled = oidcEnabledInitial;
 let oidcClient = null;
+
+// Recheck bookkeeping: rechecks are rate-limited and deduplicated so that a
+// slow/dead IdP can never pile up concurrent discovery calls or block a
+// request that triggers one.
+const OIDC_RECHECK_COOLDOWN_MS = 60 * 1000;
+const OIDC_RECHECK_TIMEOUT_SECONDS = 5;
+let lastDiscoveryAttempt = 0;
+let discoveryInFlight = null;
 
 function isOidcEnabled() {
   return oidcEnabled;
 }
 
-async function initializeOidc() {
-  if (!oidcEnabled) {
-    return null;
-  }
-
+async function attemptOidcDiscovery(timeoutSeconds) {
   try {
     oidcClient = await openidClient.discovery(
       new URL(oidcConfig.issuer),
       oidcConfig.clientId,
-      oidcConfig.clientSecret
+      oidcConfig.clientSecret,
+      undefined,
+      { timeout: timeoutSeconds }
     );
-
+    oidcEnabled = true;
     return oidcClient;
   } catch (error) {
     console.error(`${logPrefix} OIDC discovery failed, continuing in demo fallback mode:`, error.message);
@@ -40,6 +47,35 @@ async function initializeOidc() {
     oidcClient = null;
     return null;
   }
+}
+
+async function initializeOidc() {
+  if (!oidcEnabledInitial) {
+    return null;
+  }
+
+  return attemptOidcDiscovery(30);
+}
+
+// Opportunistically retries OIDC discovery after it previously failed, e.g.
+// because the IdP wasn't reachable yet at boot. Safe to call on every
+// request: a no-op once OIDC is enabled or if it was never configured, a
+// no-op while a previous attempt is still in flight, rate-limited to one
+// attempt per cooldown window, and never awaited by the caller so a
+// slow/dead IdP can't block a visitor's request.
+function maybeRecheckOidc() {
+  if (oidcEnabled || !oidcEnabledInitial || discoveryInFlight) {
+    return;
+  }
+
+  if (Date.now() - lastDiscoveryAttempt < OIDC_RECHECK_COOLDOWN_MS) {
+    return;
+  }
+
+  lastDiscoveryAttempt = Date.now();
+  discoveryInFlight = attemptOidcDiscovery(OIDC_RECHECK_TIMEOUT_SECONDS).finally(() => {
+    discoveryInFlight = null;
+  });
 }
 
 function getUserId(req) {
@@ -92,6 +128,11 @@ function requireAuth(req, res, next) {
 }
 
 const router = express.Router();
+
+router.use((req, res, next) => {
+  maybeRecheckOidc();
+  next();
+});
 
 router.get('/auth/login', async (req, res) => {
   if (!oidcEnabled) {
