@@ -21,7 +21,10 @@ function formatServerTime() {
 function renderHeader() {
   return `
     <div class="page-header">
-      <h1>Actual Backup Portal</h1>
+      <div class="page-header-title">
+        <img class="page-header-icon" src="/static/actual-backup-64.png" alt="" width="32" height="32" />
+        <h1>Actual Backup Portal</h1>
+      </div>
       <span class="page-header-clock mono">Server time: ${escapeHtml(formatServerTime())} UTC</span>
     </div>`;
 }

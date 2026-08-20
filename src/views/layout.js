@@ -34,6 +34,11 @@ const STYLES = `
 
   .page { max-width: 760px; margin: 0 auto; padding: 1.5rem 1.25rem 4rem; }
 
+  .page-header { display: flex; justify-content: space-between; align-items: center; gap: 0.75rem; flex-wrap: wrap; }
+  .page-header-title { display: flex; align-items: center; gap: 0.6rem; }
+  .page-header-icon { width: 32px; height: 32px; border-radius: var(--radius-sm); flex: none; }
+  .page-header h1 { margin: 0; }
+
   h1, h2, h3 { font-weight: 700; letter-spacing: -0.01em; margin: 0 0 0.5rem; color: var(--ink); }
   h1 { font-size: 1.5rem; }
   h2 { font-size: 1.1rem; margin-top: 2rem; }
@@ -153,6 +158,8 @@ function renderPage({ title = 'Actual Backup Portal', bodyHtml = '' } = {}) {
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>${title}</title>
+    <link rel="icon" href="/favicon.ico" sizes="any" />
+    <link rel="apple-touch-icon" href="/static/apple-touch-icon.png" />
     <style>${STYLES}</style>
   </head>
   <body>

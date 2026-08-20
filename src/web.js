@@ -2,6 +2,7 @@ const express = require('express');
 const session = require('express-session');
 const FileStore = require('session-file-store')(session);
 const fs = require('fs');
+const path = require('path');
 
 const { port, sessionStorePath, oidcConfig, logPrefix, debugEnabled, getOrCreateSessionSecret } = require('./config');
 const auth = require('./auth');
@@ -34,6 +35,9 @@ app.use(
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+app.use('/static', express.static(path.join(__dirname, '..', 'static')));
+app.use('/favicon.ico', express.static(path.join(__dirname, '..', 'static', 'favicon.ico')));
 
 app.use(auth.router);
 app.use(pageRoutes);
