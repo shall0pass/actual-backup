@@ -28,6 +28,7 @@
 FROM node:24-slim as build
 COPY package*.json ./app/
 COPY src ./app/src
+COPY static ./app/static
 WORKDIR /app
 RUN npm ci --omit=dev
 
