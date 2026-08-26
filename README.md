@@ -116,8 +116,6 @@ Everything budget-specific (server URL, password, sync ID, encryption password, 
 
 Automatically create an Actual transaction whenever you tap to pay with your phone. This was originally a separate project, [ActualTap](https://github.com/MattFaz/actualtap) by MattFaz — it's now built directly into actual-backup instead of running as its own container.
 
-> **📱 On iOS?** Check out [Actuali](https://github.com/MattFaz/actuali), an iOS app for Actual Budget ([App Store](https://apps.apple.com/app/actuali/id6764063765)) that covers this functionality natively (logging Apple Pay purchases via Shortcuts) without needing a self-hosted API, plus accounts, budgets, reports and more.
-
 ### Enabling it
 
 1. On the actual-backup dashboard, open the **Tap-to-Pay (ActualTap)** card, check **Enable tap-to-pay for my account**, and click **Generate** to create your user key.
@@ -162,7 +160,67 @@ curl -X POST https://backup.yourdomain.com/transaction \
 - **iOS** — use [Shortcuts](https://apps.apple.com/us/app/shortcuts/id915249334) triggered by a Wallet automation. [Install the shortcut](https://www.icloud.com/shortcuts/7d77085c7cab4278933fc6666d227fe7), fill in the fallback account and the card→account name mapping, then create a Wallet-triggered Automation that runs it with a Dictionary input (`URL`, `API_KEY`, `card_name`, `Merchant`, `Name`, `Amount`).
 - **Android (Tasker)** — install the **Notification** addon, import the "Wallet to ActualBudget" task from Taskernet, then edit its HTTP Request step: point the URL at your `/transaction` endpoint, add the combined API key as a header, and strip the `[ ]` brackets from the body.
 - **Android (Automate by LlamaLabs)** — import [flo #50847](https://llamalab.com/automate/community/flows/50847), then edit the HTTP request block with your endpoint and API key.
-- **Home Assistant** — enable the "Last Notification" sensor for your wallet app in the companion app, add a `rest_command` in `configuration.yaml` posting to your endpoint with header `X-API-KEY: !secret actualtap_api`, store the combined key as `actualtap_api` in `secrets.yaml`, and trigger it from an automation on that sensor.
+- **Home Assistant** — enable the "Last Notification" sensor for your wallet app in the companion app (Settings → Companion App → Manage Sensors → Last Notification), then define the `rest_command` and the automation that calls it:
+
+  ```yaml
+  # configuration.yaml
+  rest_command:
+    actualbudget:
+      url: "https://backup.yourdomain.com/transaction"
+      method: post
+      content_type: 'application/json'
+      headers:
+        X-API-KEY: !secret actualtap_api
+      payload: '{"account": "{{accountVar}}", "amount": "{{amountVar}}", "date": "{{dateVar}}", "payee": "{{payeeVar}}", "notes": "{{notesVar}}"}'
+  ```
+
+  ```yaml
+  # secrets.yaml
+  actualtap_api: your-user-key-your-budget-key
+  ```
+
+  Then build the automation itself, either in the UI (**Settings → Automations & Scenes → Create Automation**) or in YAML. For Android/Google Wallet, the notification's merchant and amount come through as the `android.title`/`android.text` attributes on that sensor, so parse them from there rather than the sensor's plain state:
+
+  ```yaml
+  # automations.yaml
+  - alias: Google Wallet Transaction Automation
+    description: ""
+    triggers:
+      - entity_id: sensor.your_device_last_notification
+        trigger: state
+    actions:
+      - data:
+          accountVar: >
+            {% set text = state_attr('sensor.your_device_last_notification',
+            'android.text') %} {% if text %}
+              {{ text.split(' with ')[1] if ' with ' in text else 'Unknown Account' }}
+            {% else %}
+              'Unknown Account'
+            {% endif %}
+          amountVar: >
+            {% set text = state_attr('sensor.your_device_last_notification',
+            'android.text') %} {% if text %}
+              {% set match = text | regex_findall('\$([0-9]+\.[0-9]{2})') %}
+              {{ match[0] if match else '0.00' }}
+            {% else %}
+              '0.00'
+            {% endif %}
+          dateVar: "{{ now().date() }}"
+          payeeVar: >-
+            {{ state_attr('sensor.your_device_last_notification', 'android.title')
+            }}
+          notesVar: Added with Home Assistant
+        response_variable: httpresponse
+        action: rest_command.actualbudget
+      - data:
+          level: info
+          message: "REST Response: {{ httpresponse }}"
+        action: system_log.write
+  ```
+
+  Swap `sensor.your_device_last_notification` for your device's actual "Last Notification" sensor, and adjust the `android.text` splits to match the wording your wallet app's notifications actually use — check **Settings → Automations & Scenes → \[your automation\] → Traces** to see the real attribute values. The `system_log.write` step logs the REST response so you can confirm the transaction posted (or see the error) from **Settings → System → Logs**.
+
+  Wallet notification wording varies by phone, OS version, and card issuer, so use **Settings → Automations & Scenes → \[your automation\] → Traces** to inspect the actual `trigger.to_state.state` text and adjust the `payee`/`amount` templates to match before trusting it with real transactions.
 
 Renaming a card in Google Wallet/iOS Wallet to match its Actual account name makes multi-card mapping simpler. Step-by-step field mapping for all of the above lives in the dashboard's Tap-to-Pay help panel, next to the toggle.
 
@@ -175,8 +233,6 @@ backup.yourdomain.com {
     reverse_proxy actual-backup:3000
 }
 ```
-
-If the web UI and tap-to-pay already share a domain, you don't need a second Caddy block at all — just use `https://<that-domain>/transaction` as the endpoint in your automation.
 
 ### Troubleshooting
 
