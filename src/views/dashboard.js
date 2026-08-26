@@ -1,5 +1,5 @@
 const { getBackupList } = require('../backups');
-const { getUserConfigs } = require('../state');
+const { getUserConfigs, getUserActualtap } = require('../state');
 const { getUserId, getDisplayName, getUserEmail, isAdminUser, isOidcEnabled, isLocalAuthEnabled } = require('../auth');
 const { escapeHtml } = require('./html');
 const { renderPage } = require('./layout');
@@ -155,6 +155,82 @@ function renderStatusBanner(req) {
   return '';
 }
 
+function renderActualtapCard(req) {
+  const { enabled, apiKey } = getUserActualtap(getUserId(req));
+  const endpointUrl = `${req.protocol}://${req.get('host')}/transaction`;
+  const keySample = escapeHtml(apiKey || 'youruserkey');
+
+  return `
+    <div class="card">
+      <h2 style="margin-top:0;">Tap-to-Pay (ActualTap)</h2>
+      <form method="POST" action="/actualtap/settings" id="actualtapForm">
+        <label class="checkbox-row">
+          <input type="checkbox" id="actualtapEnabledBox" ${enabled ? 'checked' : ''} />
+          Enable tap-to-pay for my account
+        </label>
+        <input type="hidden" name="enabled" id="actualtapEnabledHidden" value="${enabled ? 'true' : 'false'}" />
+
+        <div id="actualtapKeySection" style="margin-top:0.75rem;${enabled ? '' : 'display:none;'}">
+          <label for="actualtapApiKey">Your tap-to-pay API key</label>
+          <div class="actions">
+            <input id="actualtapApiKey" name="apiKey" class="mono" style="flex:1;" value="${escapeHtml(apiKey)}" readonly />
+            <button type="button" class="btn btn-secondary" id="actualtapGenerateBtn">Generate</button>
+          </div>
+          <p class="muted">
+            This is your half of the key. Combine it with a budget's own tap-to-pay key
+            (set on that budget's settings page) like <code>${keySample}-yourbudgetkey</code>
+            &mdash; that combined value is what you enter into Tasker, Automate, or Home Assistant.
+          </p>
+        </div>
+
+        <button type="submit" class="btn btn-primary" style="margin-top:0.75rem;">Save</button>
+      </form>
+
+      <details style="margin-top:0.75rem;">
+        <summary>Help: set up Tasker, Automate, or Home Assistant</summary>
+        <div style="margin-top:0.75rem;">
+          <p>Send a <code>POST</code> request to <code class="mono">${escapeHtml(endpointUrl)}</code> with header
+          <code>X-API-KEY: ${keySample}-yourbudgetkey</code> and a JSON body like
+          <code>{"account": "Checking", "amount": 10.50, "payee": "Starbucks"}</code>.</p>
+
+          <p><strong>Tasker</strong> &mdash; import the "Wallet to ActualBudget" flow from Taskernet, then edit the
+          HTTP Request step: set the URL to the endpoint above, add the combined API key to the request headers,
+          and remove the surrounding <code>[ ]</code> brackets from the body.</p>
+
+          <p><strong>Automate (Android)</strong> &mdash; import flo #50847 from the Automate community, then edit the
+          "HTTP request" block to point at the endpoint above and use the combined API key.</p>
+
+          <p><strong>Home Assistant</strong> &mdash; add a <code>rest_command</code> in <code>configuration.yaml</code>
+          posting to the endpoint above with header <code>X-API-KEY: !secret actualtap_api</code>, and store the
+          combined key as <code>actualtap_api</code> in <code>secrets.yaml</code>.</p>
+        </div>
+      </details>
+    </div>
+
+    <script>
+      (function () {
+        var box = document.getElementById('actualtapEnabledBox');
+        var hidden = document.getElementById('actualtapEnabledHidden');
+        var section = document.getElementById('actualtapKeySection');
+        var generateBtn = document.getElementById('actualtapGenerateBtn');
+        var keyInput = document.getElementById('actualtapApiKey');
+
+        box.addEventListener('change', function () {
+          hidden.value = box.checked ? 'true' : 'false';
+          section.style.display = box.checked ? '' : 'none';
+        });
+
+        generateBtn.addEventListener('click', function () {
+          var bytes = new Uint8Array(4);
+          crypto.getRandomValues(bytes);
+          keyInput.value = Array.from(bytes).map(function (b) {
+            return b.toString(16).padStart(2, '0');
+          }).join('');
+        });
+      })();
+    </script>`;
+}
+
 function renderDashboard(req, res, options = {}) {
   const userId = getUserId(req);
 
@@ -178,6 +254,7 @@ function renderDashboard(req, res, options = {}) {
         <a class="btn btn-secondary" href="/logout">Logout</a>
       </div>
     </div>
+    ${renderActualtapCard(req)}
     ${renderStatusBanner(req)}
     <h2>Budget backups</h2>
     ${configs.length === 0

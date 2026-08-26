@@ -4,7 +4,12 @@ const { DAY_LABELS, pad2, parseCronForUI } = require('./cron');
 
 // options: { isNew: boolean, configId: string|null }
 function renderSettingsPage(displayName, config, options = {}) {
-  const { isNew = false, configId = null } = options;
+  const { isNew = false, configId = null, userApiKey = '' } = options;
+  const actualtapEnabled = config.ACTUALTAP_ENABLED === true || config.ACTUALTAP_ENABLED === 'true';
+  const actualtapApiKey = config.ACTUALTAP_API_KEY || '';
+  const combinedKeyPreview = userApiKey
+    ? `${escapeHtml(userApiKey)}-${escapeHtml(actualtapApiKey || 'generate-a-key-below')}`
+    : 'Enable tap-to-pay for your account on the dashboard first';
   const parsedCron = parseCronForUI(config.CRON_SCHEDULE);
   const cronTimeValue = parsedCron.mode === 'simple'
     ? `${pad2(parsedCron.hour)}:${pad2(parsedCron.minute)}`
@@ -38,6 +43,24 @@ function renderSettingsPage(displayName, config, options = {}) {
 
         <label for="ACTUAL_ENCRYPTION_PASSWORD">Actual encryption password</label>
         <input id="ACTUAL_ENCRYPTION_PASSWORD" type="password" name="ACTUAL_ENCRYPTION_PASSWORD" value="${escapeHtml(config.ACTUAL_ENCRYPTION_PASSWORD || '')}" />
+      </div>
+
+      <div class="card">
+        <h2 style="margin-top:0;">Tap-to-Pay for this budget</h2>
+        <label class="checkbox-row">
+          <input type="checkbox" id="actualtapConfigEnabledBox" ${actualtapEnabled ? 'checked' : ''} />
+          Enable tap-to-pay for this budget
+        </label>
+        <input type="hidden" name="ACTUALTAP_ENABLED" id="actualtapConfigEnabledHidden" value="${actualtapEnabled ? 'true' : 'false'}" />
+
+        <div id="actualtapConfigKeySection" style="margin-top:0.75rem;${actualtapEnabled ? '' : 'display:none;'}">
+          <label for="actualtapConfigApiKey">This budget's tap-to-pay API key</label>
+          <div class="actions">
+            <input id="actualtapConfigApiKey" name="ACTUALTAP_API_KEY" class="mono" style="flex:1;" value="${escapeHtml(actualtapApiKey)}" readonly />
+            <button type="button" class="btn btn-secondary" id="actualtapConfigGenerateBtn">Generate</button>
+          </div>
+          <p class="muted">Full API key to use in Tasker/Automate/Home Assistant for this budget: <code>${combinedKeyPreview}</code></p>
+        </div>
       </div>
 
       <div class="card">
@@ -112,6 +135,23 @@ function renderSettingsPage(displayName, config, options = {}) {
         const dayBoxes = document.querySelectorAll('.cron-day');
         const form = document.getElementById('configForm');
         const useLocalTime = document.getElementById('useLocalTime');
+
+        const actualtapBox = document.getElementById('actualtapConfigEnabledBox');
+        const actualtapHidden = document.getElementById('actualtapConfigEnabledHidden');
+        const actualtapSection = document.getElementById('actualtapConfigKeySection');
+        const actualtapGenerateBtn = document.getElementById('actualtapConfigGenerateBtn');
+        const actualtapKeyInput = document.getElementById('actualtapConfigApiKey');
+
+        actualtapBox.addEventListener('change', () => {
+          actualtapHidden.value = actualtapBox.checked ? 'true' : 'false';
+          actualtapSection.style.display = actualtapBox.checked ? '' : 'none';
+        });
+
+        actualtapGenerateBtn.addEventListener('click', () => {
+          const bytes = new Uint8Array(4);
+          crypto.getRandomValues(bytes);
+          actualtapKeyInput.value = Array.from(bytes).map((b) => b.toString(16).padStart(2, '0')).join('');
+        });
 
         function pad2(n) {
           return String(n).padStart(2, '0');

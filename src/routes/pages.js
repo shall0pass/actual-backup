@@ -1,7 +1,13 @@
 const express = require('express');
 const { logPrefix } = require('../config');
 const { getUserId, getUserEmail, getDisplayName, isOidcEnabled, requireAuth } = require('../auth');
-const { getUserConfigById, upsertUserConfig, deleteUserConfigById } = require('../state');
+const {
+  getUserConfigById,
+  upsertUserConfig,
+  deleteUserConfigById,
+  getUserActualtap,
+  setUserActualtap,
+} = require('../state');
 const { registerConfigSchedule, unregisterConfigSchedule } = require('../scheduler');
 const { renderDashboard } = require('../views/dashboard');
 const { renderSettingsPage } = require('../views/settings');
@@ -21,6 +27,8 @@ function buildConfigPayload(body) {
     RETENTION_KEEP_COUNT: String(body.RETENTION_KEEP_COUNT || '10'),
     RETENTION_KEEP_MONTHLY: body.RETENTION_KEEP_MONTHLY === 'true' ? 'true' : 'false',
     RETENTION_KEEP_YEARLY: body.RETENTION_KEEP_YEARLY === 'true' ? 'true' : 'false',
+    ACTUALTAP_ENABLED: body.ACTUALTAP_ENABLED === 'true' ? 'true' : 'false',
+    ACTUALTAP_API_KEY: String(body.ACTUALTAP_API_KEY || ''),
   };
 }
 
@@ -70,6 +78,20 @@ router.post('/configs/:configId/run', requireAuth, async (req, res) => {
   }
 });
 
+router.post('/actualtap/settings', (req, res) => {
+  const userId = getUserId(req);
+  if (!userId || userId === 'anonymous') {
+    return res.redirect('/auth/login');
+  }
+
+  setUserActualtap(userId, {
+    enabled: req.body.enabled === 'true',
+    apiKey: String(req.body.apiKey || ''),
+  });
+
+  res.redirect('/');
+});
+
 router.get('/health', (req, res) => {
   res.json({ ok: true, oidcEnabled: isOidcEnabled(), userId: getUserId(req) });
 });
@@ -84,7 +106,7 @@ router.get('/settings/new', (req, res) => {
     return res.redirect('/auth/login');
   }
 
-  res.send(renderSettingsPage(getDisplayName(req), {}, { isNew: true }));
+  res.send(renderSettingsPage(getDisplayName(req), {}, { isNew: true, userApiKey: getUserActualtap(userId).apiKey }));
 });
 
 router.post('/settings/new', (req, res) => {
@@ -111,7 +133,11 @@ router.get('/settings/:configId', (req, res) => {
     return res.status(404).send('Configuration not found');
   }
 
-  res.send(renderSettingsPage(getDisplayName(req), config, { isNew: false, configId: req.params.configId }));
+  res.send(renderSettingsPage(getDisplayName(req), config, {
+    isNew: false,
+    configId: req.params.configId,
+    userApiKey: getUserActualtap(userId).apiKey,
+  }));
 });
 
 router.post('/settings/:configId', (req, res) => {

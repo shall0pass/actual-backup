@@ -71,6 +71,62 @@ function deleteUserConfigById(userId, configId) {
   return true;
 }
 
+// ActualTap tap-to-pay support: each user has one enable toggle + one
+// 8-character API key, and each of their budget configs has its own
+// enable toggle + 8-character API key. The value entered into Tasker/
+// Automate/Home Assistant is the two joined with a dash
+// (e.g. "abcdefgh-12345678"), which findActualtapTarget resolves back to
+// a specific user's specific budget.
+
+function generateShortApiKey() {
+  return crypto.randomBytes(4).toString('hex');
+}
+
+function getUserActualtap(userId) {
+  const state = readState();
+  return state.users[userId]?.actualtap || { enabled: false, apiKey: '' };
+}
+
+function setUserActualtap(userId, update) {
+  const state = readState();
+  state.users[userId] = state.users[userId] || { configs: {} };
+  state.users[userId].actualtap = {
+    ...(state.users[userId].actualtap || {}),
+    ...update,
+  };
+
+  writeState(state);
+  return state.users[userId].actualtap;
+}
+
+const COMBINED_KEY_PATTERN = /^([0-9a-f]{8})-([0-9a-f]{8})$/i;
+
+function findActualtapTarget(combinedApiKey) {
+  const match = COMBINED_KEY_PATTERN.exec(String(combinedApiKey || ''));
+  if (!match) {
+    return null;
+  }
+
+  const [, userKey, configKey] = match;
+  const state = readState();
+
+  for (const [userId, userRecord] of Object.entries(state.users || {})) {
+    const userActualtap = userRecord.actualtap;
+    if (!userActualtap?.enabled || userActualtap.apiKey !== userKey) {
+      continue;
+    }
+
+    for (const config of Object.values(userRecord.configs || {})) {
+      const enabled = config.ACTUALTAP_ENABLED === true || config.ACTUALTAP_ENABLED === 'true';
+      if (enabled && config.ACTUALTAP_API_KEY === configKey) {
+        return { userId, configId: config.id, config };
+      }
+    }
+  }
+
+  return null;
+}
+
 module.exports = {
   ensureRuntimeDirs,
   readState,
@@ -79,4 +135,8 @@ module.exports = {
   getUserConfigById,
   upsertUserConfig,
   deleteUserConfigById,
+  generateShortApiKey,
+  getUserActualtap,
+  setUserActualtap,
+  findActualtapTarget,
 };
