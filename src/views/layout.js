@@ -111,6 +111,24 @@ const STYLES = `
   .checkbox-row { display: flex; align-items: center; gap: 0.5rem; font-weight: 500; color: var(--ink); margin: 0.6rem 0 0; }
   .checkbox-row input { width: auto; }
 
+  .icon-help {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    min-height: 0;
+    flex: none;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--ink-muted);
+    font-weight: 700;
+    font-size: 0.85rem;
+    text-decoration: none;
+  }
+  .icon-help:hover { background: var(--bg); color: var(--ink); }
+
   .day-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 0.4rem; margin: 0.6rem 0; }
   .day-grid label { margin: 0; padding: 0.5rem 0.25rem; border: 1px solid var(--border); border-radius: var(--radius-sm); text-align: center; font-weight: 600; color: var(--ink-muted); }
   .day-grid input { width: auto; display: block; margin: 0 auto 0.25rem; }

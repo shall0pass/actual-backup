@@ -54,13 +54,20 @@ function renderLoggedOutBody(loginError) {
 
 const VISIBLE_BACKUP_COUNT = 4;
 
-function renderConfigCard(config) {
+function renderConfigCard(config, userActualtap) {
   const backups = getBackupList(config.id, config.USER_EMAIL);
   const label = escapeHtml(config.BACKUP_NAME || 'Untitled budget');
   const syncId = config.ACTUAL_SYNC_ID ? escapeHtml(config.ACTUAL_SYNC_ID) : 'Not set';
   const scheduleText = describeSchedule(config.CRON_SCHEDULE);
   const scheduled = Boolean(String(config.CRON_SCHEDULE || '').trim());
   const tableId = `backups-${config.id}`;
+
+  const configTapEnabled = config.ACTUALTAP_ENABLED === true || config.ACTUALTAP_ENABLED === 'true';
+  const tapToPayReady = Boolean(
+    userActualtap?.enabled && userActualtap?.apiKey && configTapEnabled && config.ACTUALTAP_API_KEY
+  );
+  const tapKeyFieldId = `tapApiKey-${config.id}`;
+  const combinedApiKey = tapToPayReady ? `${userActualtap.apiKey}-${config.ACTUALTAP_API_KEY}` : '';
 
   const rows = backups.length === 0
     ? '<tr><td colspan="5"><div class="empty-state">No backups yet for this configuration.</div></td></tr>'
@@ -85,6 +92,12 @@ function renderConfigCard(config) {
         <div>
           <h2>${label}</h2>
           <p class="muted mono">Sync ID: ${syncId}</p>
+          ${tapToPayReady ? `
+          <p class="muted" style="margin-top:0.5rem;margin-bottom:0.2rem;">Tap-to-pay key</p>
+          <div class="actions" style="align-items:center;">
+            <input id="${tapKeyFieldId}" class="mono" style="flex:1;min-width:0;" value="${escapeHtml(combinedApiKey)}" readonly />
+            <button type="button" class="btn btn-secondary btn-copy" data-copy-target="${tapKeyFieldId}">Copy</button>
+          </div>` : ''}
         </div>
         <span class="status-pill ${scheduled ? '' : 'idle'}"><span class="dot"></span>${escapeHtml(scheduleText)}</span>
       </div>
@@ -155,69 +168,73 @@ function renderStatusBanner(req) {
   return '';
 }
 
-function renderActualtapCard(req) {
-  const { enabled, apiKey } = getUserActualtap(getUserId(req));
+const ACTUALTAP_README_URL = 'https://github.com/shall0pass/actual-backup#tap-to-pay-actualtap';
+
+function renderActualtapFields(req, userActualtap) {
+  const { enabled, apiKey } = userActualtap;
   const endpointUrl = `${req.protocol}://${req.get('host')}/transaction`;
   const keySample = escapeHtml(apiKey || 'youruserkey');
 
   return `
-    <div class="card">
-      <h2 style="margin-top:0;">Tap-to-Pay (ActualTap)</h2>
-      <form method="POST" action="/actualtap/settings" id="actualtapForm">
-        <label class="checkbox-row">
-          <input type="checkbox" id="actualtapEnabledBox" ${enabled ? 'checked' : ''} />
-          Enable tap-to-pay for my account
-        </label>
-        <input type="hidden" name="enabled" id="actualtapEnabledHidden" value="${enabled ? 'true' : 'false'}" />
+    <form method="POST" action="/actualtap/settings" id="actualtapForm" style="margin-top:1rem;">
+      <label class="checkbox-row">
+        <input type="checkbox" id="actualtapEnabledBox" ${enabled ? 'checked' : ''} />
+        Enable tap-to-pay for my account
+      </label>
+      <input type="hidden" name="enabled" id="actualtapEnabledHidden" value="${enabled ? 'true' : 'false'}" />
 
-        <div id="actualtapKeySection" style="margin-top:0.75rem;${enabled ? '' : 'display:none;'}">
-          <label for="actualtapApiKey">Your tap-to-pay API key</label>
-          <div class="actions">
-            <input id="actualtapApiKey" name="apiKey" class="mono" style="flex:1;" value="${escapeHtml(apiKey)}" readonly />
-            <button type="button" class="btn btn-secondary" id="actualtapGenerateBtn">Generate</button>
-          </div>
-          <p class="muted">
-            This is your half of the key. Combine it with a budget's own tap-to-pay key
-            (set on that budget's settings page) like <code>${keySample}-yourbudgetkey</code>
-            &mdash; that combined value is what you enter into Tasker, Automate, or Home Assistant.
-          </p>
+      <div style="margin-top:0.75rem;">
+        <label for="actualtapApiKey" id="actualtapKeyLabel" style="${enabled ? '' : 'display:none;'}">Your tap-to-pay API key</label>
+        <div class="actions" style="align-items:center;">
+          <input id="actualtapApiKey" name="apiKey" class="mono" style="flex:1;min-width:0;${enabled ? '' : 'display:none;'}" value="${escapeHtml(apiKey)}" readonly />
+          <button type="button" class="btn btn-secondary" id="actualtapGenerateBtn" style="${enabled ? '' : 'display:none;'}">Generate</button>
+          <button type="submit" class="btn btn-primary">Save</button>
+          <a class="icon-help" href="${ACTUALTAP_README_URL}" target="_blank" rel="noopener noreferrer" title="Tap-to-pay setup help" aria-label="Tap-to-pay setup help">?</a>
         </div>
+        <p class="muted" id="actualtapKeyHelp" style="${enabled ? '' : 'display:none;'}">
+          This is your half of the key. Combine it with a budget's own tap-to-pay key
+          (set on that budget's settings page) like <code>${keySample}-yourbudgetkey</code>
+          &mdash; that combined value is what you enter into Tasker, Automate, or Home Assistant.
+        </p>
+      </div>
+    </form>
 
-        <button type="submit" class="btn btn-primary" style="margin-top:0.75rem;">Save</button>
-      </form>
+    <details style="margin-top:0.75rem;">
+      <summary>Help: set up Tasker, Automate, or Home Assistant</summary>
+      <div style="margin-top:0.75rem;">
+        <p>Send a <code>POST</code> request to <code class="mono">${escapeHtml(endpointUrl)}</code> with header
+        <code>X-API-KEY: ${keySample}-yourbudgetkey</code> and a JSON body like
+        <code>{"account": "Checking", "amount": 10.50, "payee": "Starbucks"}</code>.</p>
 
-      <details style="margin-top:0.75rem;">
-        <summary>Help: set up Tasker, Automate, or Home Assistant</summary>
-        <div style="margin-top:0.75rem;">
-          <p>Send a <code>POST</code> request to <code class="mono">${escapeHtml(endpointUrl)}</code> with header
-          <code>X-API-KEY: ${keySample}-yourbudgetkey</code> and a JSON body like
-          <code>{"account": "Checking", "amount": 10.50, "payee": "Starbucks"}</code>.</p>
+        <p><strong>Tasker</strong> &mdash; import the "Wallet to ActualBudget" flow from Taskernet, then edit the
+        HTTP Request step: set the URL to the endpoint above, add the combined API key to the request headers,
+        and remove the surrounding <code>[ ]</code> brackets from the body.</p>
 
-          <p><strong>Tasker</strong> &mdash; import the "Wallet to ActualBudget" flow from Taskernet, then edit the
-          HTTP Request step: set the URL to the endpoint above, add the combined API key to the request headers,
-          and remove the surrounding <code>[ ]</code> brackets from the body.</p>
+        <p><strong>Automate (Android)</strong> &mdash; import flo #50847 from the Automate community, then edit the
+        "HTTP request" block to point at the endpoint above and use the combined API key.</p>
 
-          <p><strong>Automate (Android)</strong> &mdash; import flo #50847 from the Automate community, then edit the
-          "HTTP request" block to point at the endpoint above and use the combined API key.</p>
-
-          <p><strong>Home Assistant</strong> &mdash; add a <code>rest_command</code> in <code>configuration.yaml</code>
-          posting to the endpoint above with header <code>X-API-KEY: !secret actualtap_api</code>, and store the
-          combined key as <code>actualtap_api</code> in <code>secrets.yaml</code>.</p>
-        </div>
-      </details>
-    </div>
+        <p><strong>Home Assistant</strong> &mdash; add a <code>rest_command</code> in <code>configuration.yaml</code>
+        posting to the endpoint above with header <code>X-API-KEY: !secret actualtap_api</code>, and store the
+        combined key as <code>actualtap_api</code> in <code>secrets.yaml</code>.</p>
+      </div>
+    </details>
 
     <script>
       (function () {
         var box = document.getElementById('actualtapEnabledBox');
         var hidden = document.getElementById('actualtapEnabledHidden');
-        var section = document.getElementById('actualtapKeySection');
-        var generateBtn = document.getElementById('actualtapGenerateBtn');
+        var label = document.getElementById('actualtapKeyLabel');
         var keyInput = document.getElementById('actualtapApiKey');
+        var generateBtn = document.getElementById('actualtapGenerateBtn');
+        var help = document.getElementById('actualtapKeyHelp');
 
         box.addEventListener('change', function () {
           hidden.value = box.checked ? 'true' : 'false';
-          section.style.display = box.checked ? '' : 'none';
+          var display = box.checked ? '' : 'none';
+          label.style.display = display;
+          keyInput.style.display = display;
+          generateBtn.style.display = display;
+          help.style.display = display;
         });
 
         generateBtn.addEventListener('click', function () {
@@ -226,6 +243,37 @@ function renderActualtapCard(req) {
           keyInput.value = Array.from(bytes).map(function (b) {
             return b.toString(16).padStart(2, '0');
           }).join('');
+        });
+      })();
+    </script>`;
+}
+
+function renderCopyButtonScript() {
+  return `
+    <script>
+      (function () {
+        document.addEventListener('click', function (event) {
+          var btn = event.target.closest('.btn-copy');
+          if (!btn) return;
+
+          var input = document.getElementById(btn.dataset.copyTarget);
+          if (!input) return;
+
+          var originalLabel = btn.dataset.originalLabel || btn.textContent;
+          btn.dataset.originalLabel = originalLabel;
+
+          function showCopied() {
+            btn.textContent = 'Copied!';
+            setTimeout(function () { btn.textContent = originalLabel; }, 1500);
+          }
+
+          if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(input.value).then(showCopied);
+          } else {
+            input.select();
+            document.execCommand('copy');
+            showCopied();
+          }
         });
       })();
     </script>`;
@@ -242,6 +290,7 @@ function renderDashboard(req, res, options = {}) {
   }
 
   const configs = getUserConfigs(userId);
+  const userActualtap = getUserActualtap(userId);
 
   const body = `
     ${renderHeader()}
@@ -253,14 +302,15 @@ function renderDashboard(req, res, options = {}) {
         <a class="btn btn-primary" href="/settings/new">+ Add budget configuration</a>
         <a class="btn btn-secondary" href="/logout">Logout</a>
       </div>
+      ${renderActualtapFields(req, userActualtap)}
     </div>
-    ${renderActualtapCard(req)}
     ${renderStatusBanner(req)}
     <h2>Budget backups</h2>
     ${configs.length === 0
       ? '<div class="card"><div class="empty-state"><p>No budget configurations yet.</p><p>Add one to start backing up an Actual budget.</p></div></div>'
-      : configs.map((config) => renderConfigCard(config)).join('')}
+      : configs.map((config) => renderConfigCard(config, userActualtap)).join('')}
     ${configs.length > 0 ? renderBackupsToggleScript() : ''}
+    ${renderCopyButtonScript()}
   `;
 
   res.send(renderPage({ title: 'Actual Backup Portal', bodyHtml: body }));
