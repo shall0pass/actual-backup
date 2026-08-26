@@ -35,10 +35,10 @@ function renderSettingsPage(displayName, config, options = {}) {
         <label for="ACTUAL_SERVER_URL">Actual server URL</label>
         <input id="ACTUAL_SERVER_URL" name="ACTUAL_SERVER_URL" value="${escapeHtml(config.ACTUAL_SERVER_URL || '')}" />
 
-        <label for="ACTUAL_SERVER_PASSWORD">Actual server password</label>
+        <label for="ACTUAL_SERVER_PASSWORD">Actual server password or API key</label>
         <input id="ACTUAL_SERVER_PASSWORD" type="password" name="ACTUAL_SERVER_PASSWORD" value="${escapeHtml(config.ACTUAL_SERVER_PASSWORD || '')}" />
 
-        <label for="ACTUAL_SYNC_ID">Actual sync ID</label>
+        <label for="ACTUAL_SYNC_ID">Actual budget sync ID</label>
         <input id="ACTUAL_SYNC_ID" name="ACTUAL_SYNC_ID" value="${escapeHtml(config.ACTUAL_SYNC_ID || '')}" />
 
         <label for="ACTUAL_ENCRYPTION_PASSWORD">Actual encryption password</label>
