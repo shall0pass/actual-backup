@@ -89,7 +89,7 @@ function renderConfigCard(config, userActualtap) {
   return `
     <div class="card">
       <div class="card-header">
-        <div>
+        <div style="flex:1;min-width:0;">
           <h2>${label}</h2>
           <p class="muted mono">Sync ID: ${syncId}</p>
           ${tapToPayReady ? `
