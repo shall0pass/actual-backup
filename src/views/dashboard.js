@@ -72,8 +72,8 @@ function renderConfigCard(config, userActualtap) {
   const rows = backups.length === 0
     ? '<tr><td colspan="5"><div class="empty-state">No backups yet for this configuration.</div></td></tr>'
     : backups
-        .map(
-          (backup, index) => `
+      .map(
+        (backup, index) => `
           <tr${index >= VISIBLE_BACKUP_COUNT ? ' class="extra-row" style="display:none;"' : ''}>
             <td class="select-cell" data-label="Select"><input type="checkbox" name="names" value="${escapeHtml(backup.name)}" /></td>
             <td data-label="Name" class="mono">${escapeHtml(backup.name)}</td>
@@ -81,8 +81,8 @@ function renderConfigCard(config, userActualtap) {
             <td data-label="Modified" class="date">${escapeHtml(backup.modifiedAt)}</td>
             <td data-label="Action"><a href="/api/configs/${encodeURIComponent(config.id)}/backups/${encodeURIComponent(backup.name)}">Download</a></td>
           </tr>`
-        )
-        .join('');
+      )
+      .join('');
 
   const hasMoreBackups = backups.length > VISIBLE_BACKUP_COUNT;
 
@@ -117,8 +117,8 @@ function renderConfigCard(config, userActualtap) {
           </tbody>
         </table>
         ${hasMoreBackups
-          ? `<button type="button" class="btn btn-secondary btn-toggle-backups" data-target="${tableId}" data-show-label="Show all ${backups.length} backups" style="margin-top:0.75rem;">Show all ${backups.length} backups</button>`
-          : ''}
+      ? `<button type="button" class="btn btn-secondary btn-toggle-backups" data-target="${tableId}" data-show-label="Show all ${backups.length} backups" style="margin-top:0.75rem;">Show all ${backups.length} backups</button>`
+      : ''}
         ${backups.length > 0 ? '<button type="submit" class="btn btn-danger" style="margin-top:0.75rem;">Delete selected</button>' : ''}
       </form>
     </div>`;
@@ -184,7 +184,7 @@ function renderActualtapFields(req, userActualtap) {
       <input type="hidden" name="enabled" id="actualtapEnabledHidden" value="${enabled ? 'true' : 'false'}" />
 
       <div style="margin-top:0.75rem;">
-        <label for="actualtapApiKey" id="actualtapKeyLabel" style="${enabled ? '' : 'display:none;'}">Your tap-to-pay API key</label>
+        <label for="actualtapApiKey" id="actualtapKeyLabel" style="${enabled ? '' : 'display:none;'}">Your tap-to-pay user API key</label>
         <div class="actions" style="align-items:center;">
           <input id="actualtapApiKey" name="apiKey" class="mono" style="flex:1;min-width:0;${enabled ? '' : 'display:none;'}" value="${escapeHtml(apiKey)}" readonly />
           <button type="button" class="btn btn-secondary" id="actualtapGenerateBtn" style="${enabled ? '' : 'display:none;'}">Generate</button>
@@ -192,32 +192,10 @@ function renderActualtapFields(req, userActualtap) {
           <a class="icon-help" href="${ACTUALTAP_README_URL}" target="_blank" rel="noopener noreferrer" title="Tap-to-pay setup help" aria-label="Tap-to-pay setup help">?</a>
         </div>
         <p class="muted" id="actualtapKeyHelp" style="${enabled ? '' : 'display:none;'}">
-          This is your half of the key. Combine it with a budget's own tap-to-pay key
-          (set on that budget's settings page) like <code>${keySample}-yourbudgetkey</code>
-          &mdash; that combined value is what you enter into Tasker, Automate, or Home Assistant.
+          This is half of the tap-to-pay API key. Copy the whole key from your tap-to-pay enabled budget below.
         </p>
       </div>
     </form>
-
-    <details style="margin-top:0.75rem;">
-      <summary>Help: set up Tasker, Automate, or Home Assistant</summary>
-      <div style="margin-top:0.75rem;">
-        <p>Send a <code>POST</code> request to <code class="mono">${escapeHtml(endpointUrl)}</code> with header
-        <code>X-API-KEY: ${keySample}-yourbudgetkey</code> and a JSON body like
-        <code>{"account": "Checking", "amount": 10.50, "payee": "Starbucks"}</code>.</p>
-
-        <p><strong>Tasker</strong> &mdash; import the "Wallet to ActualBudget" flow from Taskernet, then edit the
-        HTTP Request step: set the URL to the endpoint above, add the combined API key to the request headers,
-        and remove the surrounding <code>[ ]</code> brackets from the body.</p>
-
-        <p><strong>Automate (Android)</strong> &mdash; import flo #50847 from the Automate community, then edit the
-        "HTTP request" block to point at the endpoint above and use the combined API key.</p>
-
-        <p><strong>Home Assistant</strong> &mdash; add a <code>rest_command</code> in <code>configuration.yaml</code>
-        posting to the endpoint above with header <code>X-API-KEY: !secret actualtap_api</code>, and store the
-        combined key as <code>actualtap_api</code> in <code>secrets.yaml</code>.</p>
-      </div>
-    </details>
 
     <script>
       (function () {
