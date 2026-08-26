@@ -221,7 +221,7 @@ function renderActualtapCard(req) {
         });
 
         generateBtn.addEventListener('click', function () {
-          var bytes = new Uint8Array(4);
+          var bytes = new Uint8Array(16);
           crypto.getRandomValues(bytes);
           keyInput.value = Array.from(bytes).map(function (b) {
             return b.toString(16).padStart(2, '0');

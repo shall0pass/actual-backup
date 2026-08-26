@@ -17,14 +17,17 @@ instead of one global secret.
 
 ## Design: two-tier API key
 
-- Each **user** has one enable toggle + one 8-character API key
+- Each **user** has one enable toggle + one 32-hex-character API key
   (`state.users[userId].actualtap = { enabled, apiKey }`).
 - Each **budget config** also has its own enable toggle + its own
-  8-character API key (`ACTUALTAP_ENABLED` / `ACTUALTAP_API_KEY` fields
-  alongside the existing `ACTUAL_SERVER_URL` etc. in that config).
+  32-hex-character API key (`ACTUALTAP_ENABLED` / `ACTUALTAP_API_KEY`
+  fields alongside the existing `ACTUAL_SERVER_URL` etc. in that config).
 - The value entered into Tasker / Automate / Home Assistant is the two
-  halves joined with a dash: `<userKey>-<budgetKey>`, e.g.
-  `abcdefgh-12345678`.
+  halves joined with a dash: `<userKey>-<budgetKey>`.
+- Keys started out at 8 hex characters per half and were lengthened to 32
+  after a security review (see below); `findActualtapTarget` accepts
+  8-64 hex characters per half so already-generated 8-char keys keep
+  working without forcing a regeneration.
 - Incoming `POST /transaction` requests are authenticated purely by this
   combined key (no session cookie) — split on `-`, look up the user by the
   first half, then that user's budget by the second half.
@@ -59,6 +62,34 @@ request for another config against the same in-process Actual state.
 Removed (ported, no longer needed): `src/server.js`, `src/routes/health.js`,
 `src/routes/transaction.js`, `src/plugins/env.js`,
 `src/plugins/actualConnector.js`.
+
+## Security review findings (addressed)
+
+- **Timing side-channel**: the original key lookup compared keys with a
+  plain `!==`, which leaks how many leading characters matched via
+  response timing - letting an attacker guess a key character-by-character
+  far faster than brute force. Fixed with a constant-time comparison
+  (`safeCompare` in `state.js`, mirroring the existing pattern in
+  `auth.js`'s local-login check).
+- **Key length**: 8 hex characters (32 bits) per half was thin for a
+  secret exposed directly to the internet with no other protection layer.
+  Increased to 32 hex characters (128 bits) per half in the client-side
+  generators (`views/dashboard.js`, `views/settings.js`); the lookup
+  accepts both lengths so existing keys aren't invalidated.
+- **No brute-force throttling**: `/transaction` has no session/OIDC gate
+  by design (external automations can't do a browser login), so a wrong
+  API key was the only barrier, with no rate limit. Added a small in-memory
+  per-IP failed-attempt counter in `routes/tap.js` (429 after 20 failures
+  in 5 minutes) - no new dependency.
+- **Known accepted tradeoff, not fixed**: all `@actual-app/api` calls
+  (backups and tap transactions) share one process-wide lock
+  (`actualLock.js`) because the library only supports one open budget per
+  process. An authenticated request against a slow/unreachable Actual
+  server can hold that lock for up to ~40s, delaying other users' tap
+  requests and scheduled backups during that window. This only affects
+  requests with a *valid* key, not anonymous internet traffic, and a
+  bigger redesign (per-config connections) isn't warranted given the
+  library's constraints.
 
 ## Caddy
 

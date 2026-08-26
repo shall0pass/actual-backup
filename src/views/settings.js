@@ -148,7 +148,7 @@ function renderSettingsPage(displayName, config, options = {}) {
         });
 
         actualtapGenerateBtn.addEventListener('click', () => {
-          const bytes = new Uint8Array(4);
+          const bytes = new Uint8Array(16);
           crypto.getRandomValues(bytes);
           actualtapKeyInput.value = Array.from(bytes).map((b) => b.toString(16).padStart(2, '0')).join('');
         });

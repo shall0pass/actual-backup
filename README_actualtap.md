@@ -1,5 +1,15 @@
 # Actual Tap
 
+> **This file documents the original standalone ActualTap project.** In
+> this repository, its tap-to-pay functionality has been merged directly
+> into actual-backup instead of running as a second container — see the
+> "Tap-to-Pay (ActualTap)" card on the actual-backup dashboard and the
+> in-app Help panel there for live, per-deployment setup instructions. The
+> **Headers** and **Caddy** sections below have been updated to match that
+> integrated deployment; everything else on this page (env vars, `docker
+> run`/compose examples, the single global `API_KEY`) describes the
+> original standalone project and no longer applies here.
+
 <p align="center">
     <img src="images/logo.webp" width="200" height="200">
     <br>
@@ -45,9 +55,20 @@ Actual Tap is a Fastify API that utilizes the Actual Budget API Client to create
 ### Headers
 
 ```
-X-API-KEY: your-api-key
+X-API-KEY: your-user-key-your-budget-key
 Content-Type: application/json
 ```
+
+In the integrated deployment, `X-API-KEY` is a **combined key**:
+`<user key>-<budget key>`. The user key comes from the "Tap-to-Pay
+(ActualTap)" card on the actual-backup dashboard (enable it there to
+generate one); the budget key comes from that specific budget's settings
+page (enable tap-to-pay there to generate one). Combining both lets one
+user run tap-to-pay against multiple budgets — just use a different
+combined key (same user key, different budget key) per device automation.
+Each half is 32 hex characters (keys generated before this length was increased from 8 to 32 still work). There's no
+standalone `API_KEY` environment variable to set anymore — keys are
+generated and stored per user/budget through the web UI.
 
 ### Request Body
 
@@ -66,7 +87,7 @@ Content-Type: application/json
 ```bash
 # Regular transaction (expense)
 curl -X POST https://actualtap.yourdomain.com/transaction \
-  -H "X-API-KEY: your-api-key" \
+  -H "X-API-KEY: your-user-key-your-budget-key" \
   -H "Content-Type: application/json" \
   -d '{
     "account": "Checking",
@@ -76,7 +97,7 @@ curl -X POST https://actualtap.yourdomain.com/transaction \
 
 # Deposit transaction
 curl -X POST https://actualtap.yourdomain.com/transaction \
-  -H "X-API-KEY: your-api-key" \
+  -H "X-API-KEY: your-user-key-your-budget-key" \
   -H "Content-Type: application/json" \
   -d '{
     "account": "Checking",
@@ -340,17 +361,15 @@ actions:
 
 ## Caddy
 
-Actual Tap was developed with Mobile Tap-to-Pay as the main use case. In order for that to function Actual Tap needs to be exposed to the internet. Below is a standard Caddyfile configuration:
+Tap-to-Pay needs the `/transaction` endpoint exposed to the internet so mobile automations can reach it. In the standalone project this ran on its own port (3001) behind a Caddy block that also did its own `X-API-KEY` gate. In the integrated deployment, `/transaction` is served by actual-backup itself (same container, same port as the web UI) and authenticates every request with the per-user/per-budget combined key described above — so a separate header check in Caddy is redundant and no longer needed. Point the reverse proxy straight at actual-backup's port:
 
 ```
 actualtap.yourdomain.com {
-    @auth header X-API-KEY your-api-key
-    handle @auth {
-        reverse_proxy 0.0.0.0:3001
-    }
-    respond 401
+    reverse_proxy actual-backup:3000
 }
 ```
+
+If you're exposing both the web UI and tap-to-pay on the same domain, you don't need a second Caddy block at all — just add `/transaction` under whatever site block already reverse-proxies to actual-backup, and use `https://<that-domain>/transaction` as the endpoint in your Tasker/Automate/Home Assistant setup instead of a separate `actualtap.yourdomain.com` subdomain.
 
 ## Troubleshooting
 
@@ -436,8 +455,8 @@ actualtap.yourdomain.com {
 
 **Error: `401 Unauthorized`**
 
-- **Cause:** Missing or invalid API key
-- **Solution:** Ensure the `X-API-KEY` header matches the `API_KEY` environment variable
+- **Cause:** Missing or invalid API key, or tap-to-pay isn't enabled for the user and/or budget the key belongs to
+- **Solution:** Ensure the `X-API-KEY` header is `<user key>-<budget key>` exactly as shown on the actual-backup dashboard (user key) and that budget's settings page (budget key), and that both toggles are enabled
 
 **Error: `Account '[name]' not found`**
 
