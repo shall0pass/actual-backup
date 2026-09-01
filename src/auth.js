@@ -151,7 +151,7 @@ router.get('/auth/login', async (req, res) => {
   const authorizationUrl = openidClient.buildAuthorizationUrl(oidcClient, {
     redirect_uri: oidcConfig.redirectUri,
     response_type: 'code',
-    scope: 'openid profile email',
+    scope: oidcConfig.scopes,
     state,
     nonce,
     code_challenge: codeChallenge,

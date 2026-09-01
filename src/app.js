@@ -1,4 +1,3 @@
-const actual = require('@actual-app/api');
 const _7z = require('7zip-min');
 const fdate = require('date-fns');
 const fs = require('fs');
@@ -6,6 +5,8 @@ const path = require('path');
 const { debugEnabled, logPrefix } = require('./config');
 const { getUserConfigById } = require('./state');
 const { getUserDataDir } = require('./backups');
+const { actual, connectAndOpenBudget } = require('./actualConnect');
+const { withActualLock } = require('./actualLock');
 
 const defaultUserId = String(process.env.BACKUP_USER_ID || 'default').replace(/[^a-zA-Z0-9._-]/g, '-');
 // Standalone/cron-only usage (`node app.js`, no web UI) needs to know which
@@ -19,41 +20,6 @@ if (debugEnabled) {
 function loadUserConfig(userId = defaultUserId, configId = defaultConfigId) {
   return getUserConfigById(userId, configId) || {};
 }
-
-const validateUrl = (url) => {
-  if (!url || typeof url !== 'string') {
-    throw new Error('ACTUAL_URL is not a valid string');
-  }
-
-  try {
-    const parsed = new URL(url);
-    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
-      throw new Error('ACTUAL_URL must use http:// or https:// protocol');
-    }
-    return url.replace(/\/+$/, '');
-  } catch (err) {
-    throw new Error(`Invalid ACTUAL_URL format: ${err.message}`);
-  }
-};
-
-// Deliberately reports one generic failure message regardless of *why* the
-// request failed (DNS, refused, timeout, bad status). ACTUAL_SERVER_URL is
-// end-user-supplied, and per-reason errors would let it be used as a probe
-// to fingerprint hosts/ports on networks the caller couldn't otherwise reach.
-const verifyConnectivity = async (url) => {
-  try {
-    const response = await fetch(url, {
-      method: 'GET',
-      signal: AbortSignal.timeout(5000),
-    });
-
-    if (response.status < 200 || response.status >= 400) {
-      throw new Error('unreachable');
-    }
-  } catch (err) {
-    throw new Error('Could not reach the Actual server - check ACTUAL_SERVER_URL and that the server is running and accessible');
-  }
-};
 
 async function runBackup({ userId = defaultUserId, userEmail, configId = defaultConfigId, configOverride = {} } = {}) {
   const activeUserId = String(userId || 'default').replace(/[^a-zA-Z0-9._-]/g, '-');
@@ -94,85 +60,6 @@ async function runBackup({ userId = defaultUserId, userEmail, configId = default
   if (!actual_url || !password || !sync_id) {
     throw new Error('Missing Actual backup configuration for this budget. Save ACTUAL_SERVER_URL, ACTUAL_SERVER_PASSWORD, and ACTUAL_SYNC_ID in the web UI before running a backup.');
   }
-
-  const initializeActual = async (serverURL, password, timeoutMs) => {
-    try {
-      await Promise.race([
-        actual.init({ dataDir: activeDataDir, serverURL, password }),
-        new Promise((_, reject) => setTimeout(() => reject(new Error('TIMEOUT')), timeoutMs)),
-      ]);
-    } catch (err) {
-      if (err.message === 'TIMEOUT') {
-        throw new Error(`Initialization timed out after ${timeoutMs / 1000} seconds`);
-      }
-      throw new Error(`Failed to initialize Actual API: ${err.message}`);
-    }
-  };
-
-  const verifyAuthentication = async () => {
-    try {
-      const budgets = await actual.getBudgets();
-      if (!budgets || budgets.length === 0) {
-        throw new Error('ACTUAL_PASSWORD is incorrect (no budgets found)');
-      }
-      return budgets;
-    } catch (err) {
-      throw new Error(`Authentication failed: ${err.message}`);
-    }
-  };
-
-  const verifyBudgetExists = (budgets, syncId) => {
-    const budget = budgets.find((b) => b.groupId === syncId);
-    if (!budget) {
-      const availableIds = budgets.map((b) => b.groupId).join(', ');
-      throw new Error(`Budget '${syncId}' not found. Available: ${availableIds}`);
-    }
-    return budget;
-  };
-
-  const downloadBudget = async (syncId, encryptionPassword, maxRetries, retryDelay) => {
-    let lastError;
-
-    for (let attempt = 1; attempt <= maxRetries; attempt++) {
-      try {
-        if (encryptionPassword) {
-          await actual.downloadBudget(syncId, { password: encryptionPassword });
-        } else {
-          await actual.downloadBudget(syncId);
-        }
-
-        return;
-      } catch (err) {
-        lastError = err;
-
-        if (err.message?.includes('decrypt') || err.message?.includes('encryption')) {
-          throw new Error(`ACTUAL_ENCRYPTION_PASSWORD is incorrect: ${err.message}`);
-        }
-
-        if (attempt < maxRetries) {
-          await new Promise((resolve) => setTimeout(resolve, retryDelay));
-        }
-      }
-    }
-
-    throw new Error(
-      `Failed to download budget after ${maxRetries} attempts: ${lastError.message || lastError.reason || lastError}`
-    );
-  };
-
-  const verifyBudgetOpen = async () => {
-    try {
-      await actual.getAccounts();
-    } catch (err) {
-      if (err.message?.includes('No budget file is open')) {
-        throw new Error(
-          'Budget failed to open. This is likely due to a version mismatch between ActualTap and your Actual Budget server. ' +
-            'Please ensure ActualTap is updated to match your Actual Budget server version.'
-        );
-      }
-      throw new Error(`Failed to verify budget: ${err.message}`);
-    }
-  };
 
   const compressBudget = () => {
     const today = fdate.format(new Date(), 'yyyy-MM-dd-HH-mm');
@@ -249,19 +136,19 @@ async function runBackup({ userId = defaultUserId, userEmail, configId = default
     }
   };
 
-  const TIMEOUT = 30000;
-  const RETRY_COUNT = 3;
-  const RETRY_DELAY = 2000;
-
   try {
-    const url = validateUrl(actual_url);
-    await verifyConnectivity(url);
-    await initializeActual(url, password, TIMEOUT);
-    const budgets = await verifyAuthentication();
-    verifyBudgetExists(budgets, sync_id);
-    await downloadBudget(sync_id, ACTUAL_ENCRYPTION_PASSWORD, RETRY_COUNT, RETRY_DELAY);
-    await verifyBudgetOpen();
-    await actual.shutdown();
+    const { serverUrl: url } = await withActualLock(() =>
+      connectAndOpenBudget({
+        dataDir: activeDataDir,
+        serverUrl: actual_url,
+        password,
+        syncId: sync_id,
+        encryptionPassword: ACTUAL_ENCRYPTION_PASSWORD,
+      }).then(async (result) => {
+        await actual.shutdown();
+        return result;
+      })
+    );
 
     console.log(`${logPrefix} ✅ Budget sync complete.`);
     compressBudget();

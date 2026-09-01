@@ -9,6 +9,7 @@ const auth = require('./auth');
 const { restoreAllSchedules } = require('./scheduler');
 const pageRoutes = require('./routes/pages');
 const apiRoutes = require('./routes/api');
+const tapRoutes = require('./routes/tap');
 
 const app = express();
 app.set('trust proxy', 1);
@@ -40,6 +41,7 @@ app.use('/static', express.static(path.join(__dirname, '..', 'static')));
 app.use('/favicon.ico', express.static(path.join(__dirname, '..', 'static', 'favicon.ico')));
 
 app.use(auth.router);
+app.use(tapRoutes);
 app.use(pageRoutes);
 app.use(apiRoutes);
 

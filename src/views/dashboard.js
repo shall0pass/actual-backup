@@ -1,5 +1,5 @@
 const { getBackupList } = require('../backups');
-const { getUserConfigs } = require('../state');
+const { getUserConfigs, getUserActualtap } = require('../state');
 const { getUserId, getDisplayName, getUserEmail, isAdminUser, isOidcEnabled, isLocalAuthEnabled } = require('../auth');
 const { escapeHtml } = require('./html');
 const { renderPage } = require('./layout');
@@ -54,7 +54,7 @@ function renderLoggedOutBody(loginError) {
 
 const VISIBLE_BACKUP_COUNT = 4;
 
-function renderConfigCard(config) {
+function renderConfigCard(config, userActualtap) {
   const backups = getBackupList(config.id, config.USER_EMAIL);
   const label = escapeHtml(config.BACKUP_NAME || 'Untitled budget');
   const syncId = config.ACTUAL_SYNC_ID ? escapeHtml(config.ACTUAL_SYNC_ID) : 'Not set';
@@ -62,11 +62,18 @@ function renderConfigCard(config) {
   const scheduled = Boolean(String(config.CRON_SCHEDULE || '').trim());
   const tableId = `backups-${config.id}`;
 
+  const configTapEnabled = config.ACTUALTAP_ENABLED === true || config.ACTUALTAP_ENABLED === 'true';
+  const tapToPayReady = Boolean(
+    userActualtap?.enabled && userActualtap?.apiKey && configTapEnabled && config.ACTUALTAP_API_KEY
+  );
+  const tapKeyFieldId = `tapApiKey-${config.id}`;
+  const combinedApiKey = tapToPayReady ? `${userActualtap.apiKey}-${config.ACTUALTAP_API_KEY}` : '';
+
   const rows = backups.length === 0
     ? '<tr><td colspan="5"><div class="empty-state">No backups yet for this configuration.</div></td></tr>'
     : backups
-        .map(
-          (backup, index) => `
+      .map(
+        (backup, index) => `
           <tr${index >= VISIBLE_BACKUP_COUNT ? ' class="extra-row" style="display:none;"' : ''}>
             <td class="select-cell" data-label="Select"><input type="checkbox" name="names" value="${escapeHtml(backup.name)}" /></td>
             <td data-label="Name" class="mono">${escapeHtml(backup.name)}</td>
@@ -74,17 +81,23 @@ function renderConfigCard(config) {
             <td data-label="Modified" class="date">${escapeHtml(backup.modifiedAt)}</td>
             <td data-label="Action"><a href="/api/configs/${encodeURIComponent(config.id)}/backups/${encodeURIComponent(backup.name)}">Download</a></td>
           </tr>`
-        )
-        .join('');
+      )
+      .join('');
 
   const hasMoreBackups = backups.length > VISIBLE_BACKUP_COUNT;
 
   return `
     <div class="card">
       <div class="card-header">
-        <div>
+        <div style="flex:1;min-width:0;">
           <h2>${label}</h2>
           <p class="muted mono">Sync ID: ${syncId}</p>
+          ${tapToPayReady ? `
+          <p class="muted" style="margin-top:0.5rem;margin-bottom:0.2rem;">Tap-to-pay key</p>
+          <div class="actions" style="align-items:center;">
+            <input id="${tapKeyFieldId}" class="mono" style="flex:1;min-width:0;" value="${escapeHtml(combinedApiKey)}" readonly />
+            <button type="button" class="btn btn-secondary btn-copy" data-copy-target="${tapKeyFieldId}">Copy</button>
+          </div>` : ''}
         </div>
         <span class="status-pill ${scheduled ? '' : 'idle'}"><span class="dot"></span>${escapeHtml(scheduleText)}</span>
       </div>
@@ -104,8 +117,8 @@ function renderConfigCard(config) {
           </tbody>
         </table>
         ${hasMoreBackups
-          ? `<button type="button" class="btn btn-secondary btn-toggle-backups" data-target="${tableId}" data-show-label="Show all ${backups.length} backups" style="margin-top:0.75rem;">Show all ${backups.length} backups</button>`
-          : ''}
+      ? `<button type="button" class="btn btn-secondary btn-toggle-backups" data-target="${tableId}" data-show-label="Show all ${backups.length} backups" style="margin-top:0.75rem;">Show all ${backups.length} backups</button>`
+      : ''}
         ${backups.length > 0 ? '<button type="submit" class="btn btn-danger" style="margin-top:0.75rem;">Delete selected</button>' : ''}
       </form>
     </div>`;
@@ -155,6 +168,95 @@ function renderStatusBanner(req) {
   return '';
 }
 
+const ACTUALTAP_README_URL = 'https://github.com/shall0pass/actual-backup#tap-to-pay-actualtap';
+
+function renderActualtapFields(req, userActualtap) {
+  const { enabled, apiKey } = userActualtap;
+  const endpointUrl = `${req.protocol}://${req.get('host')}/transaction`;
+  const keySample = escapeHtml(apiKey || 'youruserkey');
+
+  return `
+    <form method="POST" action="/actualtap/settings" id="actualtapForm" style="margin-top:1rem;">
+      <label class="checkbox-row">
+        <input type="checkbox" id="actualtapEnabledBox" ${enabled ? 'checked' : ''} />
+        Enable tap-to-pay for my account
+      </label>
+      <input type="hidden" name="enabled" id="actualtapEnabledHidden" value="${enabled ? 'true' : 'false'}" />
+
+      <div style="margin-top:0.75rem;">
+        <label for="actualtapApiKey" id="actualtapKeyLabel" style="${enabled ? '' : 'display:none;'}">Your tap-to-pay user API key</label>
+        <div class="actions" style="align-items:center;">
+          <input id="actualtapApiKey" name="apiKey" class="mono" style="flex:1;min-width:0;${enabled ? '' : 'display:none;'}" value="${escapeHtml(apiKey)}" readonly />
+          <button type="button" class="btn btn-secondary" id="actualtapGenerateBtn" style="${enabled ? '' : 'display:none;'}">Generate</button>
+          <button type="submit" class="btn btn-primary">Save</button>
+          <a class="icon-help" href="${ACTUALTAP_README_URL}" target="_blank" rel="noopener noreferrer" title="Tap-to-pay setup help" aria-label="Tap-to-pay setup help">?</a>
+        </div>
+        <p class="muted" id="actualtapKeyHelp" style="${enabled ? '' : 'display:none;'}">
+          This is half of the tap-to-pay API key. Copy the whole key from your tap-to-pay enabled budget below.
+        </p>
+      </div>
+    </form>
+
+    <script>
+      (function () {
+        var box = document.getElementById('actualtapEnabledBox');
+        var hidden = document.getElementById('actualtapEnabledHidden');
+        var label = document.getElementById('actualtapKeyLabel');
+        var keyInput = document.getElementById('actualtapApiKey');
+        var generateBtn = document.getElementById('actualtapGenerateBtn');
+        var help = document.getElementById('actualtapKeyHelp');
+
+        box.addEventListener('change', function () {
+          hidden.value = box.checked ? 'true' : 'false';
+          var display = box.checked ? '' : 'none';
+          label.style.display = display;
+          keyInput.style.display = display;
+          generateBtn.style.display = display;
+          help.style.display = display;
+        });
+
+        generateBtn.addEventListener('click', function () {
+          var bytes = new Uint8Array(16);
+          crypto.getRandomValues(bytes);
+          keyInput.value = Array.from(bytes).map(function (b) {
+            return b.toString(16).padStart(2, '0');
+          }).join('');
+        });
+      })();
+    </script>`;
+}
+
+function renderCopyButtonScript() {
+  return `
+    <script>
+      (function () {
+        document.addEventListener('click', function (event) {
+          var btn = event.target.closest('.btn-copy');
+          if (!btn) return;
+
+          var input = document.getElementById(btn.dataset.copyTarget);
+          if (!input) return;
+
+          var originalLabel = btn.dataset.originalLabel || btn.textContent;
+          btn.dataset.originalLabel = originalLabel;
+
+          function showCopied() {
+            btn.textContent = 'Copied!';
+            setTimeout(function () { btn.textContent = originalLabel; }, 1500);
+          }
+
+          if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(input.value).then(showCopied);
+          } else {
+            input.select();
+            document.execCommand('copy');
+            showCopied();
+          }
+        });
+      })();
+    </script>`;
+}
+
 function renderDashboard(req, res, options = {}) {
   const userId = getUserId(req);
 
@@ -166,6 +268,7 @@ function renderDashboard(req, res, options = {}) {
   }
 
   const configs = getUserConfigs(userId);
+  const userActualtap = getUserActualtap(userId);
 
   const body = `
     ${renderHeader()}
@@ -177,13 +280,15 @@ function renderDashboard(req, res, options = {}) {
         <a class="btn btn-primary" href="/settings/new">+ Add budget configuration</a>
         <a class="btn btn-secondary" href="/logout">Logout</a>
       </div>
+      ${renderActualtapFields(req, userActualtap)}
     </div>
     ${renderStatusBanner(req)}
     <h2>Budget backups</h2>
     ${configs.length === 0
       ? '<div class="card"><div class="empty-state"><p>No budget configurations yet.</p><p>Add one to start backing up an Actual budget.</p></div></div>'
-      : configs.map((config) => renderConfigCard(config)).join('')}
+      : configs.map((config) => renderConfigCard(config, userActualtap)).join('')}
     ${configs.length > 0 ? renderBackupsToggleScript() : ''}
+    ${renderCopyButtonScript()}
   `;
 
   res.send(renderPage({ title: 'Actual Backup Portal', bodyHtml: body }));

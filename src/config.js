@@ -30,11 +30,25 @@ function normalizeRedirectUri(rawRedirectUri) {
 
 const isNonEmpty = (value) => typeof value === 'string' && value.trim().length > 0;
 
+const DEFAULT_OIDC_SCOPES = 'openid profile email';
+
+// 'openid' is required for OIDC to function at all, so it's always present
+// even if a custom OIDC_SCOPES value omits it.
+function normalizeScopes(rawScopes) {
+  const trimmed = String(rawScopes || '').trim();
+  const scopes = trimmed ? trimmed.split(/\s+/) : DEFAULT_OIDC_SCOPES.split(' ');
+  if (!scopes.includes('openid')) {
+    scopes.unshift('openid');
+  }
+  return scopes.join(' ');
+}
+
 const oidcConfig = {
   issuer: process.env.OIDC_ISSUER,
   clientId: process.env.OIDC_CLIENT_ID,
   clientSecret: process.env.OIDC_CLIENT_SECRET,
   redirectUri: normalizeRedirectUri(process.env.OIDC_REDIRECT_URI),
+  scopes: normalizeScopes(process.env.OIDC_SCOPES),
 };
 
 if (debugEnabled) {
