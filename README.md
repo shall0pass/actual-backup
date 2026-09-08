@@ -289,7 +289,7 @@ networks: {}
 `.env` file:
 
 ```
-TAG=25.8.0
+TAG=25.9.0
 BACKUP_SESSION_SECRET=some-long-random-string
 BACKUP_ADMIN_USERNAME=admin
 BACKUP_ADMIN_PASSWORD=change-me

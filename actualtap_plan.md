@@ -115,4 +115,4 @@ header gate — the app now validates per-user/per-budget keys itself).
 - [ ] Real end-to-end test against a live Actual Budget server (verified
       here only against a fake/unreachable one, since no real server was
       available in this environment)
-- [ ] Analyze for memory leaks and areas to reduce resource usage.
+- [ ] Analyze for memory leaks and areas to reduce resource usage using a docker container.
