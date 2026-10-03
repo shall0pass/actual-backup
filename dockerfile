@@ -25,7 +25,11 @@
 # ENV NODE_TLS_REJECT_UNAUTHORIZED=0
 # CMD ["/usr/local/bin/entrypoint.sh"]
 
-FROM node:24-slim as build
+FROM node:24-bookworm-slim AS build
+# better-sqlite3 >= 13 ships no prebuilt binaries and compiles via node-gyp
+RUN apt-get update \
+    && apt-get install --no-install-recommends -y python3 make g++ \
+    && rm -rf /var/lib/apt/lists/*
 COPY package*.json ./app/
 COPY src ./app/src
 COPY static ./app/static
