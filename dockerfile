@@ -1,4 +1,4 @@
-# FROM node:24-slim as build
+# FROM node:26-trixie-slim as build
 # RUN apt-get update \
 #     && apt-get install --no-install-recommends -y openssl \
 #     && rm -rf /var/lib/apt/lists/*
@@ -7,7 +7,7 @@
 # WORKDIR /app
 # RUN npm ci --omit=dev
 
-# FROM node:24-bookworm-slim
+# FROM node:26-trixie-slim
 # RUN apt-get update && apt-get install -y openssl cron
 
 # COPY entrypoint.sh /usr/local/bin/entrypoint.sh
@@ -25,7 +25,7 @@
 # ENV NODE_TLS_REJECT_UNAUTHORIZED=0
 # CMD ["/usr/local/bin/entrypoint.sh"]
 
-FROM node:24-bookworm-slim AS build
+FROM node:26-trixie-slim AS build
 # better-sqlite3 >= 13 ships no prebuilt binaries and compiles via node-gyp
 RUN apt-get update \
     && apt-get install --no-install-recommends -y python3 make g++ \
@@ -36,7 +36,7 @@ COPY static ./app/static
 WORKDIR /app
 RUN npm ci --omit=dev
 
-FROM node:24-bookworm-slim
+FROM node:26-trixie-slim
 
 COPY entrypoint.sh /usr/local/bin/entrypoint.sh
 RUN chmod +x /usr/local/bin/entrypoint.sh
