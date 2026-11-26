@@ -1,12 +1,12 @@
 {
   "dependencies": {
     "@actual-app/api": "26.11.0",
-    "7zip-min": "^3.0.1",
+    "7zip-min": "^3.0.3",
     "date-fns": "^4.4.0",
     "express": "^5.3.0",
     "express-session": "^1.19.0",
     "node-cron": "^4.6.0",
-    "openid-client": "^6.8.9",
+    "openid-client": "^6.9.1",
     "session-file-store": "^1.5.0"
   },
   "name": "actual-backup",
